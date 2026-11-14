@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
-  ArrowRight,
   RefreshCw,
   LogOut as LogOutIcon,
   Coffee,
@@ -20,12 +19,10 @@ import {
   Info,
   X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 export const StaffDashboard: React.FC = () => {
   const { user } = useAuth();
   const { t, isMarathi } = useLanguage();
-  const navigate = useNavigate();
 
   const [summary, setSummary] = useState<AttendanceStatusSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -261,16 +258,6 @@ export const StaffDashboard: React.FC = () => {
           })}
         </div>
       </GlassCard>
-
-      {/* History quick link button */}
-      <Button
-        variant="secondary"
-        onClick={() => navigate("/history")}
-        className="w-full text-xs font-semibold !py-3"
-        icon={<ArrowRight className="w-4 h-4 text-brand-muted" />}
-      >
-        {t.history}
-      </Button>
 
       {/* QR Scanner Modal */}
       <QRScannerModal

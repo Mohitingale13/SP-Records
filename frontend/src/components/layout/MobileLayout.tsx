@@ -47,23 +47,29 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     : "/dashboard";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between">
-      <div className="w-full max-w-md flex flex-col flex-1 pb-24">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-between relative">
+      <div className="w-full max-w-md flex flex-col flex-1 pb-32">
         <Header />
         <main className="flex-1 p-4 flex flex-col">{children}</main>
       </div>
 
-      {/* Floating Bottom Navigation Bar with iOS Liquid Capsule Switch */}
+      {/* Persistent Frosted Glass Bottom Navigation Dock */}
       {isAuthenticated && showNav && (
-        <nav className="fixed bottom-3.5 z-30 w-full max-w-md px-4">
-          <div className="w-full">
-            <IOSSegmentedSwitch<string>
-              options={navOptions}
-              value={activeValue}
-              onChange={(path) => navigate(path)}
-              size="nav"
-              className="w-full !bg-white/65 !border-white/85 shadow-xl backdrop-blur-2xl"
-            />
+        <nav className="fixed bottom-0 inset-x-0 z-40 flex flex-col items-center pointer-events-none">
+          {/* Extended Upper Glass Blur Gradient: Blurs content as it approaches the nav bar */}
+          <div className="w-full h-10 bg-gradient-to-t from-white/70 via-white/35 to-transparent backdrop-blur-md pointer-events-none [mask-image:linear-gradient(to_bottom,transparent,black)]" />
+
+          {/* Solid Glass Dock Background: Spans the nav bar and complete bottom safe area */}
+          <div className="w-full bg-white/65 backdrop-blur-2xl border-t border-white/75 shadow-[0_-8px_32px_rgba(21,59,67,0.08)] flex justify-center pt-2 pb-[max(env(safe-area-inset-bottom),12px)] pointer-events-auto">
+            <div className="w-full max-w-md px-4">
+              <IOSSegmentedSwitch<string>
+                options={navOptions}
+                value={activeValue}
+                onChange={(path) => navigate(path)}
+                size="nav"
+                className="w-full !bg-white/80 !border-white/95 shadow-md backdrop-blur-xl"
+              />
+            </div>
           </div>
         </nav>
       )}

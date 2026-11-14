@@ -2,15 +2,11 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from sqlalchemy import String, Text, DateTime, ForeignKey, Uuid, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.core.timezone import utc_now
-
-if TYPE_CHECKING:
-    from app.models.attendance import AttendanceRecord
-    from app.models.user import User
 
 
 class AuditAction(str, enum.Enum):
@@ -32,5 +28,5 @@ class AttendanceAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
-    attendance_record: Mapped[Optional["AttendanceRecord"]] = relationship("AttendanceRecord", back_populates="audit_logs")
-    actor_user: Mapped["User"] = relationship("User", back_populates="audit_logs_authored")
+    attendance_record: Mapped[Optional[Any]] = relationship("AttendanceRecord", back_populates="audit_logs")
+    actor_user: Mapped[Any] = relationship("User", back_populates="audit_logs_authored")

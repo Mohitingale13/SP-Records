@@ -1,15 +1,11 @@
 from __future__ import annotations
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import List, Any
 from sqlalchemy import String, Boolean, DateTime, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.core.timezone import utc_now
-
-if TYPE_CHECKING:
-    from app.models.user import User
-    from app.models.attendance import AttendanceRecord
 
 
 class Organization(Base):
@@ -22,5 +18,5 @@ class Organization(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
-    users: Mapped[List["User"]] = relationship("User", back_populates="organization")
-    attendance_records: Mapped[List["AttendanceRecord"]] = relationship("AttendanceRecord", back_populates="organization")
+    users: Mapped[List[Any]] = relationship("User", back_populates="organization")
+    attendance_records: Mapped[List[Any]] = relationship("AttendanceRecord", back_populates="organization")

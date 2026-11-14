@@ -12,11 +12,12 @@ import type {
   OfflineSyncResponse,
 } from "../types";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== "undefined" && window.location.hostname
-    ? `http://${window.location.hostname}:8000/api/v1`
-    : "http://localhost:8000/api/v1");
+const rawApiUrl = (import.meta.env.VITE_API_URL || "").trim();
+const API_BASE_URL = rawApiUrl
+  ? (rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, "")}/api/v1`)
+  : (typeof window !== "undefined" && window.location.hostname
+      ? `http://${window.location.hostname}:8000/api/v1`
+      : "http://localhost:8000/api/v1");
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

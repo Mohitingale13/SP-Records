@@ -5,8 +5,8 @@ services:
     region: singapore
     plan: free
     rootDir: backend
-    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt && alembic upgrade head"
-    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -16,10 +16,19 @@ services:
         sync: false
       - key: SECRET_KEY
         generateValue: true
-      - key: QR_SECRET_KEY
+      - key: QR_SIGNING_SECRET
         generateValue: true
       - key: SUPER_ADMIN_BOOTSTRAP_TOKEN
         sync: false
-      - key: CORS_ORIGINS
-        sync: false
-
+      - key: SUPER_ADMIN_PHONE
+        value: "+919999999999"
+      - key: SUPER_ADMIN_NAME
+        value: "Super Admin"
+      - key: OFFICE_LATITUDE
+        value: "18.1361880"
+      - key: OFFICE_LONGITUDE
+        value: "74.5104810"
+      - key: ATTENDANCE_GEOFENCE_RADIUS_METERS
+        value: "100"
+      - key: TIMEZONE
+        value: "Asia/Kolkata"

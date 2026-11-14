@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
-import { StatusBadge } from "../../components/common/Badge";
 import { IOSSegmentedSwitch } from "../../components/common/IOSSegmentedSwitch";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -9,28 +8,22 @@ import { adminAPI, reportsAPI, qrAPI } from "../../services/api";
 import QRCode from "qrcode";
 import type {
   DailyMonitorResponse,
-  DailyMonitorStaffItem,
   UserSummary,
-  AttendanceEvent,
   AuditLog,
   OfficeLocationConfig,
 } from "../../types";
 import {
   Shield,
-  ShieldAlert,
   QrCode,
   Calendar,
   RefreshCw,
-  PlusCircle,
   AlertTriangle,
   AlertCircle,
   FileDown,
-  Search,
   CheckCircle2,
   Users,
   UserCheck,
   UserX,
-  History,
   FileText,
   Edit2,
   X,
@@ -54,10 +47,6 @@ export const AdminDashboard: React.FC = () => {
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "PRESENT" | "ON_BREAK" | "COMPLETED" | "NOT_STARTED">("ALL");
-
   // PDF Report State
   const [reportType, setReportType] = useState<"weekly" | "monthly">("weekly");
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -71,32 +60,8 @@ export const AdminDashboard: React.FC = () => {
   const [allStaff, setAllStaff] = useState<UserSummary[]>([]);
   const [roleActionStaff, setRoleActionStaff] = useState<UserSummary | null>(null);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
-
-  // Manual Add Modal State
-  const [selectedStaff, setSelectedStaff] = useState<DailyMonitorStaffItem | null>(null);
-  const [manualEventType, setManualEventType] = useState("OFFICE_IN");
-  const [manualTime, setManualTime] = useState("09:30");
-  const [manualReason, setManualReason] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // Individual Staff Attendance History Modal State
-  const [historyStaff, setHistoryStaff] = useState<DailyMonitorStaffItem | null>(null);
-  const [staffHistory, setStaffHistory] = useState<AttendanceEvent[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-
-  // Event Correction Modal State
-  const [correctingEvent, setCorrectingEvent] = useState<{
-    staff: DailyMonitorStaffItem;
-    event: AttendanceEvent;
-  } | null>(null);
-  const [correctionTime, setCorrectionTime] = useState("09:30");
-  const [correctionEventType, setCorrectionEventType] = useState("OFFICE_IN");
-  const [correctionReason, setCorrectionReason] = useState("");
-  const [isSubmittingCorrection, setIsSubmittingCorrection] = useState(false);
-  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   // Audit Logs Modal State
   const [showAuditLogs, setShowAuditLogs] = useState(false);
@@ -334,42 +299,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Filtered staff list for attendance monitor
-  const filteredStaffAttendance = useMemo(() => {
-    if (!monitorData?.staff_attendance) return [];
-    return monitorData.staff_attendance.filter((item) => {
-      // Super Admin is exempt and should never appear in staff attendance roster
-      if (item.user.role === "SUPER_ADMIN") return false;
-
-      const matchesSearch =
-        item.user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.user.phone_number.includes(searchQuery);
-
-      if (!matchesSearch) return false;
-
-      if (statusFilter === "ALL") return true;
-      if (statusFilter === "PRESENT") return item.status === "CHECKED_IN" || item.status === "RETURNED_FROM_LUNCH";
-      if (statusFilter === "ON_BREAK") return item.status === "ON_LUNCH_BREAK";
-      if (statusFilter === "COMPLETED") return item.status === "COMPLETED";
-      if (statusFilter === "NOT_STARTED") return item.status === "NOT_STARTED";
-      return true;
-    });
-  }, [monitorData, searchQuery, statusFilter]);
-
-  // Open Staff History
-  const openStaffHistoryModal = async (staff: DailyMonitorStaffItem) => {
-    setHistoryStaff(staff);
-    setIsLoadingHistory(true);
-    try {
-      const history = await adminAPI.getStaffHistory(staff.user.id);
-      setStaffHistory(history);
-    } catch (err) {
-      console.error("Failed to fetch staff history:", err);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
   // Open Audit Logs
   const openAuditLogsModal = async () => {
     setShowAuditLogs(true);
@@ -384,83 +313,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Open Event Correction Modal
-  const openCorrectionModal = (staff: DailyMonitorStaffItem, event: AttendanceEvent) => {
-    setCorrectingEvent({ staff, event });
-    setCorrectionEventType(event.event_type);
-    // Extract HH:MM from ISO or default
-    const timeMatch = event.scanned_at ? event.scanned_at.match(/T(\d{2}:\d{2})/) : null;
-    setCorrectionTime(timeMatch ? timeMatch[1] : "09:30");
-    setCorrectionReason("");
-    setCorrectionError(null);
-  };
-
-  const handleManualAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedStaff) return;
-    setModalError(null);
-
-    if (!manualReason || manualReason.trim().length < 5) {
-      setModalError("Please provide a clear written reason for the manual attendance adjustment.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const timestampIso = `${targetDate}T${manualTime}:00Z`;
-      await adminAPI.manualAdd({
-        user_id: selectedStaff.user.id,
-        event_type: manualEventType,
-        event_date: targetDate,
-        scanned_at: timestampIso,
-        reason: manualReason.trim(),
-      });
-      setActionSuccess(`Record added for ${selectedStaff.user.full_name}`);
-      setSelectedStaff(null);
-      setManualReason("");
-      fetchMonitor();
-    } catch (err: any) {
-      setModalError(err.response?.data?.detail || "Failed to inject manual record.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCorrectionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!correctingEvent) return;
-    setCorrectionError(null);
-
-    if (!correctionReason || correctionReason.trim().length < 5) {
-      setCorrectionError("Please provide a clear written justification for correcting this timestamp.");
-      return;
-    }
-
-    setIsSubmittingCorrection(true);
-    try {
-      const eventDate = correctingEvent.event.event_date;
-      const timestampIso = `${eventDate}T${correctionTime}:00Z`;
-
-      await adminAPI.correct({
-        record_id: correctingEvent.event.id,
-        new_event_type: correctionEventType,
-        new_scanned_at: timestampIso,
-        reason: correctionReason.trim(),
-      });
-
-      setActionSuccess(t.correctSuccess);
-      setCorrectingEvent(null);
-      fetchMonitor();
-      if (historyStaff) {
-        openStaffHistoryModal(historyStaff);
-      }
-    } catch (err: any) {
-      setCorrectionError(err.response?.data?.detail || "Failed to update record.");
-    } finally {
-      setIsSubmittingCorrection(false);
-    }
-  };
-
   // PDF Report Download
   const handleDownloadReport = async () => {
     setIsDownloadingPdf(true);
@@ -471,10 +323,10 @@ export const AdminDashboard: React.FC = () => {
 
       if (reportType === "weekly") {
         blob = await reportsAPI.downloadWeekly(reportDate, reportLang);
-        filename = `Shivam_Weekly_Report_${reportDate}_${reportLang}.pdf`;
+        filename = `Shivam_Weekly_Report_${reportDate}_${Date.now()}.pdf`;
       } else {
         blob = await reportsAPI.downloadMonthly(reportYear, reportMonth, reportLang);
-        filename = `Shivam_Monthly_Report_${reportYear}_${String(reportMonth).padStart(2, "0")}_${reportLang}.pdf`;
+        filename = `Shivam_Monthly_Report_${reportYear}_${String(reportMonth).padStart(2, "0")}_${Date.now()}.pdf`;
       }
 
       const url = window.URL.createObjectURL(blob);
@@ -837,147 +689,6 @@ export const AdminDashboard: React.FC = () => {
         </Button>
       </GlassCard>
 
-      {/* Staff Roster: Search & Filter Pills */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-xs font-bold text-brand-dark uppercase tracking-wider">
-            Staff Attendance Roster
-          </h3>
-          <span className="text-[11px] font-semibold text-brand-muted">
-            {filteredStaffAttendance.length} staff
-          </span>
-        </div>
-
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-brand-muted" />
-          <input
-            type="text"
-            placeholder={t.searchStaffPlaceholder}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="glass-input !pl-9 text-xs"
-          />
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {[
-            { id: "ALL", label: t.filterAll },
-            { id: "PRESENT", label: t.filterPresent },
-            { id: "ON_BREAK", label: t.filterOnBreak },
-            { id: "COMPLETED", label: t.filterCompleted },
-            { id: "NOT_STARTED", label: t.filterNotStarted },
-          ].map((pill) => (
-            <button
-              key={pill.id}
-              onClick={() => setStatusFilter(pill.id as any)}
-              className={`px-3 py-1 rounded-full text-[11px] whitespace-nowrap transition-all duration-200 cursor-pointer ${
-                statusFilter === pill.id
-                  ? "bg-white/90 text-brand-dark border-[1.5px] border-white shadow-[0_2px_8px_rgba(21,59,67,0.12),inset_0_1px_1.5px_rgba(255,255,255,1)] font-bold scale-[1.02]"
-                  : "bg-white/40 text-brand-muted hover:text-brand-dark border border-white/60 font-medium"
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
-        </div>
-
-        {isLoading ? (
-          <div className="py-8 text-center text-xs text-brand-muted font-medium">
-            Loading attendance records...
-          </div>
-        ) : filteredStaffAttendance.length === 0 ? (
-          <GlassCard className="text-center py-6 text-xs text-brand-muted">
-            {t.noStaffFound}
-          </GlassCard>
-        ) : (
-          filteredStaffAttendance.map((item) => (
-            <GlassCard key={item.user.id} className="!p-3.5 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-brand-dark">
-                    {item.user.full_name}
-                  </h4>
-                  <span className="text-[11px] text-brand-muted font-medium">
-                    {formatPhone(item.user.phone_number)}
-                  </span>
-                </div>
-                <StatusBadge status={item.status} size="sm" />
-              </div>
-
-              {/* Event timestamps pills */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {item.events.map((evt) => (
-                  <button
-                    key={evt.id}
-                    onClick={() => openCorrectionModal(item, evt)}
-                    className="px-2 py-0.5 rounded-md bg-white/70 border border-white hover:border-brand-primary/60 text-[10px] font-medium text-brand-dark flex items-center gap-1 transition-all"
-                    title="Click to correct timestamp"
-                  >
-                    <span className="font-bold">{evt.event_type.replace(/_/g, " ")}</span>:{" "}
-                    {evt.scanned_at_ist}
-                    {evt.verification_method === "QR_GPS" && (
-                      <span
-                        className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5"
-                        title={`GPS Verified: ${evt.verified_distance_meters !== null && evt.verified_distance_meters !== undefined ? `${Math.round(evt.verified_distance_meters)}m from office` : "Verified"}`}
-                      >
-                        <MapPin className="w-2.5 h-2.5 text-emerald-600" />
-                        {evt.verified_distance_meters !== null && evt.verified_distance_meters !== undefined
-                          ? `${Math.round(evt.verified_distance_meters)}m`
-                          : "GPS"}
-                      </span>
-                    )}
-                    {evt.verification_method === "MANUAL_ADMIN" && (
-                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
-                        <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
-                        Manual
-                      </span>
-                    )}
-                    {evt.is_manually_corrected && (
-                      <ShieldAlert className="w-2.5 h-2.5 text-amber-600 inline ml-0.5" />
-                    )}
-                    <Edit2 className="w-2.5 h-2.5 text-brand-muted hover:text-brand-primary" />
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-brand-dark/10">
-                <button
-                  onClick={() => {
-                    setResetPinStaff(item.user);
-                    setResetPinError(null);
-                    setNewStaffPin("");
-                    setConfirmStaffPin("");
-                    setResetPinReason("");
-                  }}
-                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 transition-all flex items-center gap-1"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-700" />
-                  <span>{t.resetPinButton}</span>
-                </button>
-
-                <button
-                  onClick={() => openStaffHistoryModal(item)}
-                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/60 text-brand-dark hover:bg-white transition-all flex items-center gap-1"
-                >
-                  <History className="w-3.5 h-3.5 text-brand-muted" />
-                  <span>{t.viewHistory}</span>
-                </button>
-
-                <button
-                  onClick={() => setSelectedStaff(item)}
-                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-primary/15 text-brand-dark hover:bg-brand-primary/25 transition-all flex items-center gap-1"
-                >
-                  <PlusCircle className="w-3.5 h-3.5 text-brand-primary" />
-                  <span>Manual Adjust</span>
-                </button>
-              </div>
-            </GlassCard>
-          ))
-        )}
-      </div>
-
       {/* Super Admin Role Management Section */}
       {isSuperAdmin && (
         <GlassCard className="!p-4 space-y-3 border-amber-500/30">
@@ -1023,28 +734,45 @@ export const AdminDashboard: React.FC = () => {
                       <span className="text-[10px] text-brand-muted">{formatPhone(staff.phone_number)}</span>
                     </div>
 
-                    {!isSuper && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setRoleActionStaff(staff)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                          isAdmin
-                            ? "bg-red-500/15 text-red-800 hover:bg-red-500/25"
-                            : "bg-teal-500/15 text-teal-800 hover:bg-teal-500/25"
-                        }`}
+                        onClick={() => {
+                          setResetPinStaff(staff);
+                          setResetPinError(null);
+                          setNewStaffPin("");
+                          setConfirmStaffPin("");
+                          setResetPinReason("");
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 transition-all flex items-center gap-1"
+                        title={t.resetPinButton}
                       >
-                        {isAdmin ? (
-                          <>
-                            <UserX className="w-3.5 h-3.5" />
-                            <span>{t.revokeAdmin}</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>{t.assignAdmin}</span>
-                          </>
-                        )}
+                        <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                        <span className="hidden sm:inline">{t.resetPinButton}</span>
                       </button>
-                    )}
+
+                      {!isSuper && (
+                        <button
+                          onClick={() => setRoleActionStaff(staff)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                            isAdmin
+                              ? "bg-red-500/15 text-red-800 hover:bg-red-500/25"
+                              : "bg-teal-500/15 text-teal-800 hover:bg-teal-500/25"
+                          }`}
+                        >
+                          {isAdmin ? (
+                            <>
+                              <UserX className="w-3.5 h-3.5" />
+                              <span>{t.revokeAdmin}</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>{t.assignAdmin}</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })
@@ -1250,283 +978,6 @@ export const AdminDashboard: React.FC = () => {
                 className="flex-1 text-xs !py-2.5 font-bold"
               >
                 Confirm
-              </Button>
-            </div>
-          </GlassCard>
-        </div>
-      )}
-
-      {/* Manual Add Modal */}
-      {selectedStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
-          <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
-            <button
-              onClick={() => setSelectedStaff(null)}
-              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <h3 className="text-base font-bold text-brand-dark mb-1">
-              Manual Attendance Adjustment
-            </h3>
-            <p className="text-xs text-brand-muted mb-4">
-              Staff: <span className="font-bold text-brand-dark">{selectedStaff.user.full_name}</span>
-            </p>
-
-            {modalError && (
-              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-700 text-xs font-medium">
-                {modalError}
-              </div>
-            )}
-
-            <form onSubmit={handleManualAddSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1">
-                  Event Type
-                </label>
-                <select
-                  value={manualEventType}
-                  onChange={(e) => setManualEventType(e.target.value)}
-                  className="glass-input text-xs font-medium"
-                >
-                  <option value="OFFICE_IN">Office In</option>
-                  <option value="LUNCH_BREAK_OUT">Lunch Break Out</option>
-                  <option value="LUNCH_BREAK_IN">Lunch Break In</option>
-                  <option value="OFFICE_OUT">Office Out</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1">
-                  Time (HH:MM)
-                </label>
-                <input
-                  type="time"
-                  value={manualTime}
-                  onChange={(e) => setManualTime(e.target.value)}
-                  className="glass-input text-xs font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Mandatory Written Justification</span>
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Explain why this record is being manually added (e.g. Phone malfunction, field visit, etc.)"
-                  value={manualReason}
-                  onChange={(e) => setManualReason(e.target.value)}
-                  className="glass-input text-xs"
-                  required
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setSelectedStaff(null)}
-                  className="flex-1 text-xs !py-2.5"
-                >
-                  {t.cancel}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  isLoading={isSubmitting}
-                  className="flex-1 text-xs !py-2.5 font-bold"
-                >
-                  Save Record
-                </Button>
-              </div>
-            </form>
-          </GlassCard>
-        </div>
-      )}
-
-      {/* Correct Existing Record Modal */}
-      {correctingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
-          <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
-            <button
-              onClick={() => setCorrectingEvent(null)}
-              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <h3 className="text-base font-bold text-brand-dark mb-1">
-              {t.editRecord}
-            </h3>
-            <p className="text-xs text-brand-muted mb-4">
-              Staff: <span className="font-bold text-brand-dark">{correctingEvent.staff.user.full_name}</span>
-              <br />
-              Current: <span className="font-semibold">{correctingEvent.event.event_type}</span> at{" "}
-              {correctingEvent.event.scanned_at_ist}
-            </p>
-
-            {correctionError && (
-              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-700 text-xs font-medium">
-                {correctionError}
-              </div>
-            )}
-
-            <form onSubmit={handleCorrectionSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1">
-                  {t.newEvent}
-                </label>
-                <select
-                  value={correctionEventType}
-                  onChange={(e) => setCorrectionEventType(e.target.value)}
-                  className="glass-input text-xs font-medium"
-                >
-                  <option value="OFFICE_IN">Office In</option>
-                  <option value="LUNCH_BREAK_OUT">Lunch Break Out</option>
-                  <option value="LUNCH_BREAK_IN">Lunch Break In</option>
-                  <option value="OFFICE_OUT">Office Out</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1">
-                  {t.newTime}
-                </label>
-                <input
-                  type="time"
-                  value={correctionTime}
-                  onChange={(e) => setCorrectionTime(e.target.value)}
-                  className="glass-input text-xs font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Mandatory Correction Reason</span>
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Explain why this timestamp is being modified (e.g. Staff recorded at counter late, time adjustment verified by manager)"
-                  value={correctionReason}
-                  onChange={(e) => setCorrectionReason(e.target.value)}
-                  className="glass-input text-xs"
-                  required
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setCorrectingEvent(null)}
-                  className="flex-1 text-xs !py-2.5"
-                >
-                  {t.cancel}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  isLoading={isSubmittingCorrection}
-                  className="flex-1 text-xs !py-2.5 font-bold"
-                >
-                  Save Correction
-                </Button>
-              </div>
-            </form>
-          </GlassCard>
-        </div>
-      )}
-
-      {/* Staff History Modal */}
-      {historyStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
-          <GlassCard className="w-full max-w-md max-h-[85vh] flex flex-col relative !p-6 border-white/80 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-brand-dark/10">
-              <div>
-                <h3 className="text-base font-bold text-brand-dark">
-                  {t.employeeHistory}
-                </h3>
-                <p className="text-xs text-brand-muted">
-                  {historyStaff.user.full_name} ({formatPhone(historyStaff.user.phone_number)})
-                </p>
-              </div>
-              <button
-                onClick={() => setHistoryStaff(null)}
-                className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-brand-dark transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 py-3 space-y-2 no-scrollbar">
-              {isLoadingHistory ? (
-                <div className="py-8 text-center text-xs text-brand-muted font-medium">
-                  Loading employee records...
-                </div>
-              ) : staffHistory.length === 0 ? (
-                <div className="py-8 text-center text-xs text-brand-muted">
-                  {t.noHistoryFound}
-                </div>
-              ) : (
-                staffHistory.map((rec) => (
-                  <div
-                    key={rec.id}
-                    className="p-2.5 rounded-xl bg-white/60 border border-white/80 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-bold text-brand-dark flex items-center gap-1.5 flex-wrap">
-                        <span>{rec.event_type.replace(/_/g, " ")}</span>
-                        {rec.verification_method === "QR_GPS" && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5">
-                            <MapPin className="w-2.5 h-2.5 text-emerald-600" />
-                            GPS {rec.verified_distance_meters !== null && rec.verified_distance_meters !== undefined ? `${Math.round(rec.verified_distance_meters)}m` : "Verified"}
-                          </span>
-                        )}
-                        {rec.verification_method === "MANUAL_ADMIN" && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
-                            <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
-                            Manual
-                          </span>
-                        )}
-                        {rec.is_manually_corrected && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 font-semibold">
-                            Corrected
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-brand-muted">{rec.event_date}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold text-brand-primary">
-                        {rec.scanned_at_ist}
-                      </span>
-                      <button
-                        onClick={() => openCorrectionModal(historyStaff, rec)}
-                        className="p-1 rounded-md bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark"
-                        title="Correct this record"
-                      >
-                        <Edit2 className="w-3 h-3 text-brand-primary" />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-brand-dark/10">
-              <Button
-                variant="secondary"
-                onClick={() => setHistoryStaff(null)}
-                className="w-full text-xs !py-2"
-              >
-                {t.close}
               </Button>
             </div>
           </GlassCard>

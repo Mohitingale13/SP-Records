@@ -222,7 +222,7 @@ export const adminAPI = {
 
 export const reportsAPI = {
   downloadWeekly: async (startDate?: string, language: "en" | "mr" = "en"): Promise<Blob> => {
-    const params: Record<string, string> = { lang: language, language };
+    const params: Record<string, string> = { lang: language, language, _t: String(Date.now()) };
     if (startDate) {
       params.start_date = startDate;
       params.week_date = startDate;
@@ -230,17 +230,25 @@ export const reportsAPI = {
     const res = await apiClient.get("/admin/reports/weekly.pdf", {
       params,
       responseType: "blob",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+      },
     });
     return res.data;
   },
 
   downloadMonthly: async (year?: number, month?: number, language: "en" | "mr" = "en"): Promise<Blob> => {
-    const params: Record<string, any> = { lang: language, language };
+    const params: Record<string, any> = { lang: language, language, _t: String(Date.now()) };
     if (year) params.year = year;
     if (month) params.month = month;
     const res = await apiClient.get("/admin/reports/monthly.pdf", {
       params,
       responseType: "blob",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+      },
     });
     return res.data;
   },

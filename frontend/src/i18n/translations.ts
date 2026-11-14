@@ -166,6 +166,9 @@ export interface Translations {
   gpsErrorPermission: string;
   gpsErrorUnavailable: string;
   outsideGeofenceMessage: string;
+  myAttendanceTab: string;
+  staffRecordsTab: string;
+  staffAttendanceRosterTitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -335,6 +338,9 @@ export const translations: Record<Language, Translations> = {
     gpsErrorPermission: "Location access denied. Please enable location permissions in browser settings.",
     gpsErrorUnavailable: "Unable to acquire satellite GPS fix. Please ensure location is turned on.",
     outsideGeofenceMessage: "You are outside the 100m office area. Attendance must be logged on office premises.",
+    myAttendanceTab: "My Attendance",
+    staffRecordsTab: "Staff Records",
+    staffAttendanceRosterTitle: "Staff Attendance Records",
   },
   mr: {
     appName: "शिवम पतसंस्था",
@@ -502,5 +508,8 @@ export const translations: Record<Language, Translations> = {
     gpsErrorPermission: "स्थान (GPS) परवानगी बंद आहे. कृपया ब्राऊझर सेटिंग्जमध्ये लोकेशन सुरू करा.",
     gpsErrorUnavailable: "GPS सिग्नल मिळू शकला नाही. कृपया फोनचे लोकेशन (GPS) चालू करा.",
     outsideGeofenceMessage: "तुम्ही कार्यालयाच्या १०० मीटर आवाराबाहेर आहात. उपस्थिती केवळ शिवम पतसंस्था कार्यालयातच नोंदवता येईल.",
+    myAttendanceTab: "माझी उपस्थिती",
+    staffRecordsTab: "कर्मचारी नोंदी",
+    staffAttendanceRosterTitle: "कर्मचारी उपस्थिती नोंदी",
   },
 };

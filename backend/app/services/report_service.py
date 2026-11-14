@@ -180,14 +180,16 @@ class ReportService:
                 "no_records": "No attendance records found for this period.",
             }
 
-        # Query Database (Exclude Super Admin who is exempt from staff attendance)
+        # Query Database
         all_staff = (
             db.query(User)
             .join(Role, User.role_id == Role.id)
-            .filter(Role.name != "SUPER_ADMIN")
+            .filter(Role.name.in_(["STAFF", "ADMIN"]))
             .order_by(User.full_name.asc())
             .all()
         )
+        all_users = db.query(User).all()
+        user_map = {u.id: u for u in all_users}
         records = (
             db.query(AttendanceRecord)
             .filter(
@@ -199,7 +201,6 @@ class ReportService:
         )
 
         # Aggregate data by (user_id, event_date)
-        user_map = {u.id: u for u in all_staff}
         day_user_events: Dict[tuple, Dict[str, AttendanceRecord]] = {}
         active_user_ids = set()
         completed_days_count = 0

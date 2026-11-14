@@ -160,12 +160,12 @@ export const LoginScreen: React.FC = () => {
         <div className="mb-5">
           <IOSSegmentedSwitch<"login" | "register">
             options={[
-              { value: "login", label: t.loginTab, icon: <Lock className="w-3.5 h-3.5" /> },
-              { value: "register", label: t.registerTab, icon: <User className="w-3.5 h-3.5" /> },
+              { value: "login", label: <span className="font-bold text-[13.5px]">{t.loginTab}</span>, icon: <Lock className="w-4 h-4" /> },
+              { value: "register", label: <span className="font-bold text-[13.5px]">{t.registerTab}</span>, icon: <User className="w-4 h-4" /> },
             ]}
             value={activeTab}
             onChange={handleTabChange}
-            size="md"
+            size="lg"
             className="w-full"
           />
         </div>
@@ -188,7 +188,7 @@ export const LoginScreen: React.FC = () => {
                 maxLength={10}
                 inputMode="numeric"
                 pattern="[0-9]*"
-                placeholder={language === "mr" ? "१० अंकी मोबाईल नंबर (उदा. 9876543210)" : "10-digit mobile number (e.g. 9876543210)"}
+                placeholder="9898989898"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                 className="glass-input text-sm font-medium tracking-wide"
@@ -269,7 +269,7 @@ export const LoginScreen: React.FC = () => {
                 maxLength={10}
                 inputMode="numeric"
                 pattern="[0-9]*"
-                placeholder={language === "mr" ? "१० अंकी मोबाईल नंबर (उदा. 9876543210)" : "10-digit mobile number (e.g. 9876543210)"}
+                placeholder="9898989898"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                 className="glass-input text-sm font-medium tracking-wide"

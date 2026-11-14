@@ -24,6 +24,9 @@ erDiagram
         uuid id PK
         varchar name
         varchar code UK
+        double_precision office_latitude
+        double_precision office_longitude
+        double_precision geofence_radius_meters
         boolean is_active
         timestamptz created_at
         timestamptz updated_at
@@ -41,19 +44,12 @@ erDiagram
         int role_id FK
         varchar full_name
         varchar phone_number UK
+        varchar pin_hash
+        int failed_login_attempts
+        timestamptz locked_until
         boolean is_active
         timestamptz created_at
         timestamptz updated_at
-    }
-
-    OTP_VERIFICATIONS {
-        uuid id PK
-        varchar phone_number
-        varchar otp_code_hash
-        timestamptz expires_at
-        int attempts
-        boolean is_verified
-        timestamptz created_at
     }
 
     ATTENDANCE_RECORDS {
@@ -65,6 +61,10 @@ erDiagram
         timestamptz scanned_at
         varchar source_qr_nonce
         boolean is_manually_corrected
+        float verified_distance_meters
+        float reported_accuracy_meters
+        varchar verification_method
+        varchar client_ip
         timestamptz created_at
         timestamptz updated_at
     }
@@ -104,12 +104,15 @@ erDiagram
 ## 3. Detailed Table Specifications
 
 ### 3.1 `organizations`
-Represents the single operating entity (Shivam Patsanstha).
+Represents the operating cooperative banking society entity (Shivam Patsanstha) and its registered physical geofence coordinates.
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | Primary Key, default `gen_random_uuid()` | Unique organization identifier |
 | `name` | `VARCHAR(150)` | NOT NULL | Organization name ("Shivam Patsanstha") |
 | `code` | `VARCHAR(50)` | NOT NULL, UNIQUE | Organization code identifier ("SHIVAM_PAT") |
+| `office_latitude` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `18.1361880` | Official registered office latitude |
+| `office_longitude` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `74.5104810` | Official registered office longitude |
+| `geofence_radius_meters` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `100.0` | Permitted attendance radius in meters |
 | `is_active` | `BOOLEAN` | NOT NULL, DEFAULT true | Status flag |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Update timestamp |
@@ -117,7 +120,7 @@ Represents the single operating entity (Shivam Patsanstha).
 ---
 
 ### 3.2 `roles`
-Enumerated role hierarchy.
+Enumerated role hierarchy (`SUPER_ADMIN`, `ADMIN`, `STAFF`).
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `INTEGER` | Primary Key | Role ID |
@@ -127,15 +130,18 @@ Enumerated role hierarchy.
 ---
 
 ### 3.3 `users`
-Registered staff, administrators, and super-admin.
+Registered staff, branch administrators, and super administrators authenticated with a 6-digit numeric PIN.
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | Primary Key, default `gen_random_uuid()` | Unique user identifier |
-| `organization_id` | `UUID` | Foreign Key (`organizations.id`), NOT NULL | Tenant link |
+| `organization_id` | `UUID` | Foreign Key (`organizations.id`), NOT NULL | Society tenant link |
 | `role_id` | `INTEGER` | Foreign Key (`roles.id`), NOT NULL | Assigned role |
-| `full_name` | `VARCHAR(120)` | NOT NULL | User's full legal name |
+| `full_name` | `VARCHAR(120)` | NOT NULL | Employee's full legal name |
 | `phone_number` | `VARCHAR(20)` | NOT NULL, UNIQUE, Indexed | E.164 formatted phone number (`+919876543210`) |
-| `is_active` | `BOOLEAN` | NOT NULL, DEFAULT true | Account status |
+| `pin_hash` | `VARCHAR(128)` | NULLABLE | Native bcrypt hash of 6-digit PIN |
+| `failed_login_attempts` | `INTEGER` | NOT NULL, DEFAULT 0 | Counter for failed PIN attempts |
+| `locked_until` | `TIMESTAMPTZ` | NULLABLE | Temporary lockout timestamp |
+| `is_active` | `BOOLEAN` | NOT NULL, DEFAULT true | Account active status |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Registration timestamp |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Profile update timestamp |
 
@@ -144,25 +150,8 @@ Registered staff, administrators, and super-admin.
 
 ---
 
-### 3.4 `otp_verifications`
-Manages phone verification during onboarding or re-authentication.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `UUID` | Primary Key, default `gen_random_uuid()` | Record identifier |
-| `phone_number` | `VARCHAR(20)` | NOT NULL, Indexed | Phone number requesting verification |
-| `otp_code_hash` | `VARCHAR(255)` | NOT NULL | Cryptographic hash of 6-digit OTP |
-| `expires_at` | `TIMESTAMPTZ` | NOT NULL | OTP validity cutoff (e.g. 5 minutes) |
-| `attempts` | `INTEGER` | NOT NULL, DEFAULT 0 | Failed verification attempt counter |
-| `is_verified` | `BOOLEAN` | NOT NULL, DEFAULT false | Whether successfully verified |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Request timestamp |
-
-**Indexes**:
-- `ix_otp_phone_created` ON (`phone_number`, `created_at` DESC)
-
----
-
-### 3.5 `attendance_records`
-Stores immutable timestamps of daily attendance events.
+### 3.4 `attendance_records`
+Stores immutable timestamps and physical verification metadata for the daily four-step attendance lifecycle.
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | Primary Key, default `gen_random_uuid()` | Record identifier |
@@ -173,6 +162,10 @@ Stores immutable timestamps of daily attendance events.
 | `scanned_at` | `TIMESTAMPTZ` | NOT NULL | Server-generated timestamp of scan |
 | `source_qr_nonce` | `VARCHAR(100)` | NULLABLE | Tracking reference to the QR token used |
 | `is_manually_corrected` | `BOOLEAN` | NOT NULL, DEFAULT false | Flagged true if modified by Admin |
+| `verified_distance_meters` | `FLOAT` | NULLABLE | Calculated Haversine distance from office |
+| `reported_accuracy_meters` | `FLOAT` | NULLABLE | Device GPS accuracy reported in meters |
+| `verification_method` | `VARCHAR(50)` | NOT NULL, DEFAULT `QR_GPS` | `QR_GPS`, `OFFLINE_GPS`, `MANUAL_ADMIN` |
+| `client_ip` | `VARCHAR(45)` | NULLABLE | Client IP address at time of scan |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Record insertion timestamp |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Record modification timestamp |
 
@@ -184,8 +177,8 @@ Stores immutable timestamps of daily attendance events.
 
 ---
 
-### 3.6 `attendance_audit_logs`
-Tracks any administrative manual additions or modifications.
+### 3.5 `attendance_audit_logs`
+Tracks any administrative manual additions or modifications with mandatory reason logging.
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | Primary Key, default `gen_random_uuid()` | Audit identifier |
@@ -199,8 +192,8 @@ Tracks any administrative manual additions or modifications.
 
 ---
 
-### 3.7 `qr_tokens` & `qr_scan_tracks`
-Ephemeral token tracking for rotating office QR codes.
+### 3.6 `qr_tokens` & `qr_scan_tracks`
+Token tracking and concurrency validation for attendance QR codes.
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | Primary Key | Token entry ID |
@@ -208,7 +201,7 @@ Ephemeral token tracking for rotating office QR codes.
 | `organization_id` | `UUID` | Foreign Key (`organizations.id`), NOT NULL | Organization scope |
 | `created_by_user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Admin issuer user |
 | `issued_at` | `TIMESTAMPTZ` | NOT NULL | Token creation time |
-| `expires_at` | `TIMESTAMPTZ` | NOT NULL | Token expiration time (e.g. +30s) |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | Token expiration time |
 | `is_revoked` | `BOOLEAN` | NOT NULL, DEFAULT false | Administrative revocation |
 
 `qr_scan_tracks`:
@@ -221,5 +214,4 @@ Ephemeral token tracking for rotating office QR codes.
 | `scanned_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Scan time |
 
 **Constraint**:
-- `uq_qr_user_scan` ON (`qr_nonce`, `user_id`) ensures a staff member cannot replay the exact same QR code twice, while allowing other staff members to scan the same QR code before it expires.
-
+- `uq_qr_user_scan` ON (`qr_nonce`, `user_id`) ensures a staff member cannot replay the exact same QR scan twice, while allowing colleagues to scan the shared office QR poster throughout the day.

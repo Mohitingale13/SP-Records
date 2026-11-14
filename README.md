@@ -39,9 +39,7 @@ SP-Records/
 │   ├── architecture.md
 │   ├── database-schema.md
 │   ├── attendance-workflow.md
-│   ├── qr-security.md
-│   ├── phase-2-completion-audit.md
-│   └── implementation-plan.md
+│   └── qr-security.md
 ├── render.yaml                 # Render backend deployment spec
 ├── vercel.json                 # Vercel root deployment spec
 └── README.md
@@ -209,12 +207,10 @@ npm run build
 ## 6. Architecture & Implementation Documentation
 
 Detailed documentation is available in the `docs/` directory:
-- [Phase 2 Completion & Audit Report](docs/phase-2-completion-audit.md)
-- [Architecture Specification](docs/architecture.md)
-- [Database Schema Design](docs/database-schema.md)
-- [Attendance Workflow & State Machine](docs/attendance-workflow.md)
-- [QR Cryptographic Security](docs/qr-security.md)
-- [Implementation Plan](docs/implementation-plan.md)
+- [Architecture Specification](docs/architecture.md): System components, dataflow, security, and API endpoints.
+- [Database Schema Design](docs/database-schema.md): Complete normalized PostgreSQL schema and constraints.
+- [Attendance Workflow & State Machine](docs/attendance-workflow.md): Four-step lifecycle and chronological state rules.
+- [QR Cryptographic Security](docs/qr-security.md): Official printed QR poster & 100m GPS geofencing specification.
 
 ---
 *Shivam Patsanstha Digital Attendance System – Production PWA Ready.*

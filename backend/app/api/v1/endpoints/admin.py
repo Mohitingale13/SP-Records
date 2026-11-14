@@ -1,0 +1,305 @@
+import uuid
+from typing import List, Optional, Dict, Any
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy.orm import Session
+from app.db.session import get_db
+from app.api.v1.deps import require_admin, require_super_admin
+from app.models.user import User
+from app.models.role import RoleName
+from app.models.attendance import AttendanceRecord
+from app.models.audit import AttendanceAuditLog
+from app.schemas.auth import AdminResetPinRequest
+from app.schemas.user import UserSchema, UserUpdateRoleRequest
+from app.schemas.attendance import (
+    AttendanceManualCreateRequest,
+    AttendanceCorrectionRequest,
+    AttendanceEventSchema,
+    AttendanceStatusSummary,
+)
+from app.schemas.audit import AuditLogSchema
+from app.services.attendance_service import AttendanceService
+from app.services.auth_service import AuthService
+from app.services.report_service import ReportService
+from app.core.timezone import get_current_kolkata_date, format_kolkata_time
+
+router = APIRouter(prefix="/admin", tags=["Administration"])
+
+
+@router.get("/staff", response_model=List[UserSchema], summary="List all staff members in the organization")
+def list_staff(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    users = (
+        db.query(User)
+        .filter(User.organization_id == current_admin.organization_id)
+        .order_by(User.full_name.asc())
+        .all()
+    )
+    return users
+
+
+@router.get("/daily-monitor", summary="View live real-time attendance matrix for all staff")
+def get_daily_monitor(
+    target_date: Optional[date] = Query(None, description="Date to inspect (default: today)"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Returns the attendance overview for all staff on target_date,
+    categorizing present, on break, completed, and not started.
+    """
+    if target_date is None:
+        target_date = get_current_kolkata_date()
+
+    staff_members = (
+        db.query(User)
+        .filter(
+            User.organization_id == current_admin.organization_id,
+            User.is_active == True,
+        )
+        .order_by(User.full_name.asc())
+        .all()
+    )
+
+    results = []
+    summary_counts = {
+        "total_staff": len(staff_members),
+        "present": 0,
+        "on_break": 0,
+        "completed": 0,
+        "not_started": 0,
+    }
+
+    for staff in staff_members:
+        status_info = AttendanceService.get_daily_status(db, staff, target_date)
+        if status_info.status == "NOT_STARTED":
+            summary_counts["not_started"] += 1
+        elif status_info.status in ["CHECKED_IN", "RETURNED_FROM_LUNCH"]:
+            summary_counts["present"] += 1
+        elif status_info.status == "ON_LUNCH_BREAK":
+            summary_counts["on_break"] += 1
+        elif status_info.status == "COMPLETED":
+            summary_counts["completed"] += 1
+
+        results.append({
+            "user": {
+                "id": str(staff.id),
+                "full_name": staff.full_name,
+                "phone_number": staff.phone_number,
+                "role": staff.role.name,
+            },
+            "status": status_info.status,
+            "next_expected_event": status_info.next_expected_event,
+            "is_completed": status_info.is_completed,
+            "events": status_info.events,
+        })
+
+    return {
+        "date": target_date,
+        "counts": summary_counts,
+        "staff_attendance": results,
+    }
+
+
+@router.get("/staff/{user_id}/history", response_model=List[AttendanceEventSchema], summary="View attendance history of a specific staff member")
+def get_staff_history(
+    user_id: uuid.UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    query = (
+        db.query(AttendanceRecord)
+        .filter(
+            AttendanceRecord.user_id == user_id,
+            AttendanceRecord.organization_id == current_admin.organization_id,
+        )
+    )
+    if start_date:
+        query = query.filter(AttendanceRecord.event_date >= start_date)
+    if end_date:
+        query = query.filter(AttendanceRecord.event_date <= end_date)
+
+    records = query.order_by(AttendanceRecord.event_date.desc(), AttendanceRecord.scanned_at.desc()).all()
+
+    return [
+        AttendanceEventSchema(
+            id=r.id,
+            event_type=r.event_type,
+            event_date=r.event_date,
+            scanned_at=r.scanned_at,
+            scanned_at_ist=format_kolkata_time(r.scanned_at),
+            is_manually_corrected=r.is_manually_corrected,
+        )
+        for r in records
+    ]
+
+
+@router.post("/attendance/manual-add", response_model=AttendanceEventSchema, summary="Admin manual injection of missing attendance event")
+def manual_add_event(
+    payload: AttendanceManualCreateRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    record, err = AttendanceService.admin_manual_add_event(
+        db,
+        admin_user=current_admin,
+        target_user_id=payload.user_id,
+        event_type=payload.event_type,
+        event_date=payload.event_date,
+        scanned_at=payload.scanned_at,
+        reason=payload.reason,
+    )
+    if err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
+
+    return AttendanceEventSchema(
+        id=record.id,
+        event_type=record.event_type,
+        event_date=record.event_date,
+        scanned_at=record.scanned_at,
+        scanned_at_ist=format_kolkata_time(record.scanned_at),
+        is_manually_corrected=record.is_manually_corrected,
+    )
+
+
+@router.put("/attendance/correct", response_model=AttendanceEventSchema, summary="Admin correction of existing attendance record")
+def correct_event(
+    payload: AttendanceCorrectionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    record, err = AttendanceService.admin_correct_event(
+        db,
+        admin_user=current_admin,
+        record_id=payload.record_id,
+        new_event_type=payload.new_event_type,
+        new_scanned_at=payload.new_scanned_at,
+        reason=payload.reason,
+    )
+    if err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
+
+    return AttendanceEventSchema(
+        id=record.id,
+        event_type=record.event_type,
+        event_date=record.event_date,
+        scanned_at=record.scanned_at,
+        scanned_at_ist=format_kolkata_time(record.scanned_at),
+        is_manually_corrected=record.is_manually_corrected,
+    )
+
+
+@router.get("/audit-logs", response_model=List[AuditLogSchema], summary="Inspect administrative correction audit logs")
+def list_audit_logs(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    logs = (
+        db.query(AttendanceAuditLog)
+        .order_by(AttendanceAuditLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        AuditLogSchema(
+            id=log.id,
+            attendance_record_id=log.attendance_record_id,
+            actor_user_id=log.actor_user_id,
+            actor_name=log.actor_user.full_name if log.actor_user else "System",
+            action=log.action,
+            reason=log.reason,
+            previous_state=log.previous_state,
+            new_state=log.new_state,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
+
+
+@router.put("/users/{user_id}/role", response_model=UserSchema, summary="Super Admin promotion or revocation of Admin privileges")
+def update_user_role(
+    user_id: uuid.UUID,
+    payload: UserUpdateRoleRequest,
+    db: Session = Depends(get_db),
+    current_super_admin: User = Depends(require_super_admin),
+):
+    user, err = AuthService.update_user_role(db, user_id, payload.role_name)
+    if err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
+
+    return user
+
+
+@router.post("/users/{user_id}/reset-pin", response_model=UserSchema, summary="Admin recovery: reset a staff member's 6-digit PIN")
+def admin_reset_pin(
+    user_id: uuid.UUID,
+    payload: AdminResetPinRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    user, err = AuthService.admin_reset_pin(
+        db,
+        admin_user=current_admin,
+        target_user_id=user_id,
+        new_pin=payload.new_pin,
+        reason=payload.reason,
+    )
+    if err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
+
+    return user
+
+
+@router.get("/reports/weekly.pdf", summary="Download weekly attendance PDF report")
+def download_weekly_report(
+    start_date: Optional[date] = Query(None, description="Any date in the target week"),
+    week_date: Optional[date] = Query(None, description="Alias for start_date"),
+    lang: str = Query("en", description="Language: 'en' or 'mr'"),
+    language: Optional[str] = Query(None, description="Alias for lang"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    target_date = start_date or week_date or get_current_kolkata_date()
+    target_lang = language or lang or "en"
+    monday, sunday = ReportService.get_weekly_date_range(target_date)
+    pdf_bytes = ReportService.generate_attendance_pdf(
+        db, start_date=monday, end_date=sunday, report_type="WEEKLY", lang=target_lang
+    )
+    filename = f"Shivam_Patsanstha_Weekly_Attendance_{monday.isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/reports/monthly.pdf", summary="Download monthly attendance PDF report")
+def download_monthly_report(
+    year: Optional[int] = Query(None, description="Year (e.g. 2026)"),
+    month: Optional[int] = Query(None, description="Month (1-12)"),
+    lang: str = Query("en", description="Language: 'en' or 'mr'"),
+    language: Optional[str] = Query(None, description="Alias for lang"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    today = get_current_kolkata_date()
+    target_year = year or today.year
+    target_month = month or today.month
+    target_lang = language or lang or "en"
+
+    start_date, end_date = ReportService.get_monthly_date_range(target_year, target_month)
+    pdf_bytes = ReportService.generate_attendance_pdf(
+        db, start_date=start_date, end_date=end_date, report_type="MONTHLY", lang=target_lang
+    )
+    filename = f"Shivam_Patsanstha_Monthly_Attendance_{target_year}-{target_month:02d}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+

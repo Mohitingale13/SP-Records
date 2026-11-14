@@ -1,0 +1,377 @@
+export type Language = "en" | "mr";
+
+export interface Translations {
+  appName: string;
+  appSubtitle: string;
+  loginWelcome: string;
+  loginDesc: string;
+  enterFullName: string;
+  enterPhone: string;
+  requestOtp: string;
+  sendingOtp: string;
+  enterOtp: string;
+  otpSentTo: string;
+  verifyAndContinue: string;
+  verifying: string;
+  resendOtp: string;
+  dashboard: string;
+  history: string;
+  adminPanel: string;
+  todayAttendance: string;
+  scanQrToRecord: string;
+  scanQrCode: string;
+  nextStep: string;
+  eventsCompleted: string;
+  allEventsDone: string;
+  officeIn: string;
+  lunchBreakOut: string;
+  lunchBreakIn: string;
+  officeOut: string;
+  statusNotStarted: string;
+  statusCheckedIn: string;
+  statusOnLunch: string;
+  statusReturnedLunch: string;
+  statusCompleted: string;
+  logout: string;
+  scannerTitle: string;
+  scannerHint: string;
+  cameraPermissionNeeded: string;
+  scanningSuccess: string;
+  rapidScanWarning: string;
+  close: string;
+  present: string;
+  absent: string;
+  onBreak: string;
+  manualCorrection: string;
+  reason: string;
+  submit: string;
+  cancel: string;
+
+  // Contextual messages
+  msgNotStarted: string;
+  msgCheckedIn: string;
+  msgOnLunch: string;
+  msgReturnedLunch: string;
+  msgCompleted: string;
+
+  // Auth & PIN
+  loginTab: string;
+  registerTab: string;
+  sixDigitPin: string;
+  confirmPin: string;
+  loginButton: string;
+  registerButton: string;
+  forgotPin: string;
+  showPin: string;
+  hidePin: string;
+  pinsDoNotMatch: string;
+  pinLengthError: string;
+  phoneLengthError: string;
+  nameRequiredError: string;
+  resetPinTitle: string;
+  newPin: string;
+  resetPinReason: string;
+  resetPinSuccess: string;
+  resetPinButton: string;
+
+  // Reports
+  reportsTitle: string;
+  weeklyReport: string;
+  monthlyReport: string;
+  downloadPdf: string;
+  selectDate: string;
+  selectMonth: string;
+  reportLanguage: string;
+  downloading: string;
+  reportSuccess: string;
+  reportError: string;
+
+  // Search & Filter
+  searchStaffPlaceholder: string;
+  filterAll: string;
+  filterPresent: string;
+  filterOnBreak: string;
+  filterCompleted: string;
+  filterNotStarted: string;
+  noStaffFound: string;
+
+  // Super Admin
+  superAdminTitle: string;
+  superAdminDesc: string;
+  staffMember: string;
+  currentRole: string;
+  action: string;
+  assignAdmin: string;
+  revokeAdmin: string;
+  confirmRoleChange: string;
+  roleChangeSuccess: string;
+
+  // QR Kiosk
+  kioskTitle: string;
+  kioskSubtitle: string;
+  kioskClockTitle: string;
+  kioskRotatingNotice: string;
+  kioskRefreshQr: string;
+  kioskCountdown: string;
+
+  // Audit Logs & Details
+  auditLogsTitle: string;
+  viewHistory: string;
+  employeeHistory: string;
+  noHistoryFound: string;
+  editRecord: string;
+  newTime: string;
+  newEvent: string;
+  correctSuccess: string;
+}
+
+export const translations: Record<Language, Translations> = {
+  en: {
+    appName: "Shivam Patsanstha",
+    appSubtitle: "Digital Attendance Management",
+    loginWelcome: "Welcome to Shivam Patsanstha",
+    loginDesc: "Enter your registered mobile phone number to access your attendance register.",
+    enterFullName: "Full Name",
+    enterPhone: "Mobile Phone Number",
+    requestOtp: "Send Verification Code",
+    sendingOtp: "Sending Code...",
+    enterOtp: "Enter 6-digit Verification Code",
+    otpSentTo: "A code was sent to",
+    verifyAndContinue: "Verify & Enter",
+    verifying: "Verifying...",
+    resendOtp: "Resend Code",
+    dashboard: "My Attendance",
+    history: "Past Records",
+    adminPanel: "Admin Suite",
+    todayAttendance: "Today's Attendance",
+    scanQrToRecord: "Scan Office QR",
+    scanQrCode: "Scan QR",
+    nextStep: "Next Action",
+    eventsCompleted: "Completed for today",
+    allEventsDone: "Daily Attendance Completed",
+    officeIn: "Office In",
+    lunchBreakOut: "Lunch Break (Out)",
+    lunchBreakIn: "Lunch Break (In)",
+    officeOut: "Office Out",
+    statusNotStarted: "Not Checked In",
+    statusCheckedIn: "In Office (Working)",
+    statusOnLunch: "On Lunch Break",
+    statusReturnedLunch: "Returned to Office",
+    statusCompleted: "Day Completed",
+    logout: "Log Out",
+    scannerTitle: "Office QR Scanner",
+    scannerHint: "Point your phone camera at the rotating QR display at the office counter.",
+    cameraPermissionNeeded: "Please allow camera access to scan the attendance QR code.",
+    scanningSuccess: "Attendance recorded successfully!",
+    rapidScanWarning: "Please wait a few seconds before scanning again.",
+    close: "Close",
+    present: "Present",
+    absent: "Absent",
+    onBreak: "On Lunch Break",
+    manualCorrection: "Correct Record",
+    reason: "Reason for Adjustment",
+    submit: "Submit",
+    cancel: "Cancel",
+
+    // Contextual messages
+    msgNotStarted: "Welcome! Scan office QR upon arrival.",
+    msgCheckedIn: "You're checked in! Have a productive day.",
+    msgOnLunch: "Enjoy your lunch break! Scan when you return.",
+    msgReturnedLunch: "Welcome back from lunch!",
+    msgCompleted: "All 4 scans complete for today. See you tomorrow!",
+
+    // Auth & PIN
+    loginTab: "Login",
+    registerTab: "Register",
+    sixDigitPin: "6-Digit Security PIN",
+    confirmPin: "Confirm Security PIN",
+    loginButton: "Login",
+    registerButton: "Register & Create Account",
+    forgotPin: "Forgot PIN? Contact office administrator",
+    showPin: "Show PIN",
+    hidePin: "Hide PIN",
+    pinsDoNotMatch: "PINs do not match. Please verify.",
+    pinLengthError: "PIN must be exactly 6 digits.",
+    phoneLengthError: "Please enter a valid 10-digit mobile number.",
+    nameRequiredError: "Please enter your full name.",
+    resetPinTitle: "Reset Employee PIN",
+    newPin: "New 6-Digit PIN",
+    resetPinReason: "Reason for Reset (Required)",
+    resetPinSuccess: "PIN reset successfully!",
+    resetPinButton: "Reset PIN",
+
+    // Reports
+    reportsTitle: "Attendance Reports",
+    weeklyReport: "Weekly Report",
+    monthlyReport: "Monthly Report",
+    downloadPdf: "Download PDF",
+    selectDate: "Select Week Date",
+    selectMonth: "Select Month",
+    reportLanguage: "Report Language",
+    downloading: "Generating PDF...",
+    reportSuccess: "Report downloaded successfully!",
+    reportError: "Failed to download report. Please try again.",
+
+    // Search & Filter
+    searchStaffPlaceholder: "Search staff by name or phone...",
+    filterAll: "All Staff",
+    filterPresent: "Present",
+    filterOnBreak: "On Break",
+    filterCompleted: "Completed",
+    filterNotStarted: "Not Started",
+    noStaffFound: "No staff members match the selected criteria.",
+
+    // Super Admin
+    superAdminTitle: "Super Admin Role Management",
+    superAdminDesc: "Assign or revoke Admin operational roles for registered staff members.",
+    staffMember: "Staff Member",
+    currentRole: "Current Role",
+    action: "Action",
+    assignAdmin: "Make Admin",
+    revokeAdmin: "Revoke Admin",
+    confirmRoleChange: "Are you sure you want to change this user's role?",
+    roleChangeSuccess: "Role updated successfully!",
+
+    // QR Kiosk
+    kioskTitle: "Shivam Patsanstha Attendance Kiosk",
+    kioskSubtitle: "Point your phone camera at the QR code below to register your attendance.",
+    kioskClockTitle: "Official Indian Standard Time",
+    kioskRotatingNotice: "This QR code rotates automatically every 20 seconds for security.",
+    kioskRefreshQr: "Force Refresh",
+    kioskCountdown: "Refreshing in",
+
+    // Audit Logs & Details
+    auditLogsTitle: "Administrative Audit Logs",
+    viewHistory: "History",
+    employeeHistory: "Employee Attendance History",
+    noHistoryFound: "No past records found for this employee.",
+    editRecord: "Correct Record",
+    newTime: "New Time (HH:MM)",
+    newEvent: "New Event Type",
+    correctSuccess: "Attendance record corrected successfully!",
+  },
+  mr: {
+    appName: "शिवम पतसंस्था",
+    appSubtitle: "डिजिटल उपस्थिती व्यवस्थापन प्रणाली",
+    loginWelcome: "शिवम पतसंस्थेमध्ये आपले स्वागत आहे",
+    loginDesc: "तुमच्या उपस्थिती नोंदवहीत प्रवेश करण्यासाठी तुमचा नोंदणीकृत मोबाइल नंबर प्रविष्ट करा.",
+    enterFullName: "पूर्ण नाव",
+    enterPhone: "मोबाइल फोन नंबर",
+    requestOtp: "पडताळणी कोड पाठवा (OTP)",
+    sendingOtp: "कोड पाठवत आहे...",
+    enterOtp: "६-अंकी पडताळणी कोड प्रविष्ट करा",
+    otpSentTo: "पडताळणी कोड या नंबरवर पाठवला आहे:",
+    verifyAndContinue: "सत्यापित करा आणि पुढे जा",
+    verifying: "सत्यापित करत आहे...",
+    resendOtp: "पुन्हा कोड पाठवा",
+    dashboard: "माझी उपस्थिती",
+    history: "मागील नोंदी",
+    adminPanel: "प्रशासकीय कक्ष",
+    todayAttendance: "आजची उपस्थिती",
+    scanQrToRecord: "कार्यालयीन QR स्कॅन करा",
+    scanQrCode: "QR स्कॅन करा",
+    nextStep: "पुढील कृती",
+    eventsCompleted: "आजच्या नोंदी पूर्ण झाल्या",
+    allEventsDone: "आजचे उपस्थिती चक्र पूर्ण झाले आहे",
+    officeIn: "कार्यालय आगमन (Office In)",
+    lunchBreakOut: "दुपारचे जेवण (बाहेर)",
+    lunchBreakIn: "दुपारचे जेवण (परत)",
+    officeOut: "कार्यालय निर्गमन (Office Out)",
+    statusNotStarted: "उपस्थिती सुरू झालेली नाही",
+    statusCheckedIn: "कार्यालयात उपस्थित (काम चालू)",
+    statusOnLunch: "दुपारच्या जेवणाच्या सुट्टीत",
+    statusReturnedLunch: "जेवण करून कार्यालयात परत",
+    statusCompleted: "आजची उपस्थिती पूर्ण झाली",
+    logout: "लॉग आउट करा",
+    scannerTitle: "कार्यालय QR स्कॅनर",
+    scannerHint: "कार्यालयीन काउंटरवरील स्क्रीनवर फिरणारा QR कोड कॅमेरासमोर धरा.",
+    cameraPermissionNeeded: "उपस्थिती QR कोड स्कॅन करण्यासाठी कॅमेरा परवानगी द्या.",
+    scanningSuccess: "उपस्थिती यशस्वीरित्या नोंदवली गेली!",
+    rapidScanWarning: "कृपया पुन्हा स्कॅन करण्यापूर्वी काही सेकंद प्रतीक्षा करा.",
+    close: "बंद करा",
+    present: "उपस्थित",
+    absent: "अनुपस्थित",
+    onBreak: "जेवणाच्या सुट्टीत",
+    manualCorrection: "नोंद दुरुस्त करा",
+    reason: "दुरुस्तीचे कारण (अनिवार्य)",
+    submit: "जमा करा",
+    cancel: "रद्द करा",
+
+    // Contextual messages
+    msgNotStarted: "स्वागत आहे! कार्यालयात आल्यावर QR स्कॅन करा.",
+    msgCheckedIn: "तुम्ही उपस्थित नोंदवले आहात! चांगला दिवस जावो.",
+    msgOnLunch: "दुपारच्या जेवणाचा आनंद घ्या! परत आल्यावर स्कॅन करा.",
+    msgReturnedLunch: "जेवणानंतर परत आल्याबद्दल स्वागत!",
+    msgCompleted: "आजचे सर्व ४ स्कॅन पूर्ण झाले आहेत. उद्या भेटू!",
+
+    // Auth & PIN
+    loginTab: "लॉगिन",
+    registerTab: "नवीन नोंदणी",
+    sixDigitPin: "६-अंकी सुरक्षा पिन",
+    confirmPin: "पिन पुन्हा प्रविष्ट करा",
+    loginButton: "लॉगिन करा",
+    registerButton: "खाते तयार करा",
+    forgotPin: "पिन विसरलात? कार्यालय प्रशासकाशी संपर्क साधा",
+    showPin: "पिन दाखवा",
+    hidePin: "पिन लपवा",
+    pinsDoNotMatch: "पिन जुळत नाहीत. कृपया पुन्हा तपासा.",
+    pinLengthError: "पिन नेमका ६ अंकी असावा.",
+    phoneLengthError: "कृपया वैध १० अंकी मोबाईल क्रमांक प्रविष्ट करा.",
+    nameRequiredError: "कृपया आपले पूर्ण नाव प्रविष्ट करा.",
+    resetPinTitle: "कर्मचाऱ्याचा पिन बदला",
+    newPin: "नवीन ६-अंकी पिन",
+    resetPinReason: "पिन बदलण्याचे कारण (अनिवार्य)",
+    resetPinSuccess: "पिन यशस्वीरित्या बदलला गेला!",
+    resetPinButton: "पिन बदला",
+
+    // Reports
+    reportsTitle: "उपस्थिती अहवाल",
+    weeklyReport: "साप्ताहिक अहवाल",
+    monthlyReport: "मासिक अहवाल",
+    downloadPdf: "PDF डाउनलोड करा",
+    selectDate: "आठवड्याची तारीख निवडा",
+    selectMonth: "महिना निवडा",
+    reportLanguage: "अहवाल भाषा",
+    downloading: "PDF तयार करत आहे...",
+    reportSuccess: "अहवाल यशस्वीरित्या डाउनलोड झाला!",
+    reportError: "अहवाल डाउनलोड करण्यात अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
+
+    // Search & Filter
+    searchStaffPlaceholder: "कर्मचाऱ्यांचे नाव किंवा फोन नंबर शोधा...",
+    filterAll: "सर्व कर्मचारी",
+    filterPresent: "उपस्थित",
+    filterOnBreak: "सुट्टीत",
+    filterCompleted: "पूर्ण",
+    filterNotStarted: "सुरू नाही",
+    noStaffFound: "निवडलेल्या निकषांनुसार कर्मचारी आढळले नाहीत.",
+
+    // Super Admin
+    superAdminTitle: "सुपर ॲडमिन व्यवस्थापन",
+    superAdminDesc: "नोंदणीकृत कर्मचाऱ्यांना प्रशासकीय (Admin) अधिकार द्या किंवा रद्द करा.",
+    staffMember: "कर्मचारी",
+    currentRole: "सध्याची भूमिका",
+    action: "कृती",
+    assignAdmin: "ॲडमिन बनवा",
+    revokeAdmin: "ॲडमिन रद्द करा",
+    confirmRoleChange: "तुम्हाला खरोखर या वापरकर्त्याची भूमिका बदलायची आहे का?",
+    roleChangeSuccess: "भूमिका यशस्वीरित्या बदलली गेली!",
+
+    // QR Kiosk
+    kioskTitle: "शिवम पतसंस्था उपस्थिती किऑस्क",
+    kioskSubtitle: "तुमची उपस्थिती नोंदवण्यासाठी खालील QR कोड फोन कॅमेराने स्कॅन करा.",
+    kioskClockTitle: "भारतीय प्रमाणवेळ (IST)",
+    kioskRotatingNotice: "सुरक्षेसाठी हा QR कोड दर २० सेकंदांनी आपोआप बदलतो.",
+    kioskRefreshQr: "आताच बदला",
+    kioskCountdown: "पुढील बदल",
+
+    // Audit Logs & Details
+    auditLogsTitle: "प्रशासकीय बदल नोंदवही (Audit Logs)",
+    viewHistory: "इतिहास",
+    employeeHistory: "कर्मचाऱ्याचा उपस्थिती इतिहास",
+    noHistoryFound: "या कर्मचाऱ्यासाठी मागील नोंदी आढळल्या नाहीत.",
+    editRecord: "नोंद दुरुस्त करा",
+    newTime: "नवीन वेळ (HH:MM)",
+    newEvent: "नवीन उपस्थिती प्रकार",
+    correctSuccess: "उपस्थिती नोंद यशस्वीरित्या दुरुस्त केली गेली!",
+  },
+};

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: shivam-attendance-backend
+    env: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt && alembic upgrade head"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: TZ
+        value: Asia/Kolkata
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: QR_SECRET_KEY
+        generateValue: true
+      - key: SUPER_ADMIN_BOOTSTRAP_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+

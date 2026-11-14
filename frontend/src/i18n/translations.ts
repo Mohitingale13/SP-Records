@@ -98,6 +98,13 @@ export interface Translations {
   // Super Admin
   superAdminTitle: string;
   superAdminDesc: string;
+  superAdminExecutiveHub: string;
+  superAdminExecutiveNotice: string;
+  superAdminLaunchKiosk: string;
+  superAdminAdminSuiteDesc: string;
+  superAdminKioskDesc: string;
+  superAdminHistoryDesc: string;
+  overview: string;
   staffMember: string;
   currentRole: string;
   action: string;
@@ -239,6 +246,13 @@ export const translations: Record<Language, Translations> = {
     // Super Admin
     superAdminTitle: "Super Admin Role Management",
     superAdminDesc: "Assign or revoke Admin operational roles for registered staff members.",
+    superAdminExecutiveHub: "Super Administrator Hub",
+    superAdminExecutiveNotice: "Super Admin privileges active. Personal QR attendance check-in is exempt for this account. You have full executive control over organization attendance, kiosks, and records.",
+    superAdminLaunchKiosk: "Launch Office Kiosk",
+    superAdminAdminSuiteDesc: "Manage staff roster, monitor today's attendance, manual corrections, and office location settings.",
+    superAdminKioskDesc: "Display the 20-second rotating HMAC QR code on the office kiosk screen.",
+    superAdminHistoryDesc: "Inspect staff attendance logs, monthly summaries, and generate official PDF reports.",
+    overview: "Overview",
     staffMember: "Staff Member",
     currentRole: "Current Role",
     action: "Action",
@@ -378,6 +392,13 @@ export const translations: Record<Language, Translations> = {
     // Super Admin
     superAdminTitle: "सुपर ॲडमिन व्यवस्थापन",
     superAdminDesc: "नोंदणीकृत कर्मचाऱ्यांना प्रशासकीय (Admin) अधिकार द्या किंवा रद्द करा.",
+    superAdminExecutiveHub: "सुपर ॲडमिनिस्ट्रेटर केंद्र",
+    superAdminExecutiveNotice: "सुपर ॲडमिन विशेषाधिकार सक्रिय. या खात्यासाठी वैयक्तिक QR उपस्थिती नोंदवण्याची आवश्यकता नाही. आपल्याकडे संस्थेचे संपूर्ण प्रशासकीय नियंत्रण आहे.",
+    superAdminLaunchKiosk: "कार्यालय किऑस्क सुरू करा",
+    superAdminAdminSuiteDesc: "कर्मचारी यादी, आजची उपस्थिती, रेकॉर्ड दुरुस्ती आणि कार्यालय सेटिंग्ज व्यवस्थापित करा.",
+    superAdminKioskDesc: "कार्यालयीन काउंटरवरील स्क्रीनवर २०-सेकंदांचा सुरक्षित QR कोड प्रदर्शित करा.",
+    superAdminHistoryDesc: "कर्मचाऱ्यांचे उपस्थिती नोंदी, मासिक सारांश आणि PDF अहवाल तपासा.",
+    overview: "प्रशासन केंद्र",
     staffMember: "कर्मचारी",
     currentRole: "सध्याची भूमिका",
     action: "कृती",

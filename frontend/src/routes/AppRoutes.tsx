@@ -35,7 +35,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
 };
 
 export const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isSuperAdmin, isLoading } = useAuth();
   const [splashVisible, setSplashVisible] = useState(true);
 
   return (
@@ -52,7 +52,7 @@ export const AppRoutes: React.FC = () => {
           path="/"
           element={
             isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
+              <Navigate to={isSuperAdmin ? "/admin" : "/dashboard"} replace />
             ) : (
               <MobileLayout showNav={false}>
                 <LoginScreen />
@@ -65,7 +65,7 @@ export const AppRoutes: React.FC = () => {
           path="/login"
           element={
             isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
+              <Navigate to={isSuperAdmin ? "/admin" : "/dashboard"} replace />
             ) : (
               <MobileLayout showNav={false}>
                 <LoginScreen />

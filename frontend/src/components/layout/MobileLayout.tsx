@@ -15,15 +15,15 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   children,
   showNav = true,
 }) => {
-  const { isAuthenticated, isAdmin } = useAuth();
-  const { t } = useLanguage();
+  const { isAuthenticated, isAdmin, isSuperAdmin } = useAuth();
+  const { t, isMarathi } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
   const navOptions: SegmentOption<string>[] = [
     {
       value: "/dashboard",
-      label: t.dashboard,
+      label: isSuperAdmin ? (isMarathi ? "प्रशासन केंद्र" : "Overview") : t.dashboard,
       icon: <Calendar className="w-4 h-4" />,
     },
     {
@@ -70,6 +70,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
               value={activeValue}
               onChange={(path) => navigate(path)}
               size="nav"
+              collapseInactiveLabels={navOptions.length >= 3}
               className="w-full !bg-white/70 !border-white/90 shadow-xl backdrop-blur-2xl"
             />
           </div>

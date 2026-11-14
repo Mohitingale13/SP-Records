@@ -54,7 +54,11 @@ export const LoginScreen: React.FC = () => {
     try {
       const data = await authAPI.login(cleanPhone, pin);
       login(data.access_token, data.user);
-      navigate("/dashboard");
+      if (data.user?.role === "SUPER_ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === "string" ? detail : "Invalid credentials. Please try again.");
@@ -92,7 +96,11 @@ export const LoginScreen: React.FC = () => {
     try {
       const data = await authAPI.register(fullName.trim(), cleanPhone, pin, confirmPin);
       login(data.access_token, data.user);
-      navigate("/dashboard");
+      if (data.user?.role === "SUPER_ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === "string" ? detail : "Registration failed. Please check details.");

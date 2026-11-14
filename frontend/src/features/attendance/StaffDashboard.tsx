@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { attendanceAPI } from "../../services/api";
 import type { AttendanceStatusSummary, AttendanceEventType } from "../../types";
+import { useNavigate } from "react-router-dom";
 import {
   QrCode,
   CheckCircle2,
@@ -18,11 +19,15 @@ import {
   Calendar,
   Info,
   X,
+  Shield,
+  ArrowRight,
+  History,
 } from "lucide-react";
 
 export const StaffDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const { t, isMarathi } = useLanguage();
+  const navigate = useNavigate();
 
   const [summary, setSummary] = useState<AttendanceStatusSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +35,7 @@ export const StaffDashboard: React.FC = () => {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const fetchStatus = async () => {
+    if (isSuperAdmin) return;
     setIsLoading(true);
     try {
       const data = await attendanceAPI.getTodayStatus();
@@ -42,8 +48,10 @@ export const StaffDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchStatus();
-  }, []);
+    if (!isSuperAdmin) {
+      fetchStatus();
+    }
+  }, [isSuperAdmin]);
 
   const getEventName = (eventType: AttendanceEventType): string => {
     switch (eventType) {
@@ -93,6 +101,153 @@ export const StaffDashboard: React.FC = () => {
   const completedCount = summary?.events.length || 0;
   const progressPercent = Math.min(100, Math.round((completedCount / 4) * 100));
 
+  // ==========================================
+  // SUPER ADMIN EXECUTIVE VIEW (NO SCANNING)
+  // ==========================================
+  if (isSuperAdmin) {
+    return (
+      <div className="space-y-4">
+        {/* Executive Header */}
+        <div className="flex items-center justify-between pt-1">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-brand-dark">
+                {user?.full_name || "Super Admin"}
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-800 border border-amber-500/30 flex items-center gap-1 shadow-sm">
+                <Shield className="w-3 h-3 text-amber-600" />
+                Super Admin
+              </span>
+            </div>
+            <p className="text-xs text-brand-muted font-medium flex items-center gap-1.5 mt-0.5">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>
+                {new Date().toLocaleDateString(isMarathi ? "mr-IN" : "en-IN", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* Executive Exemption & Privileges Notice */}
+        <GlassCard className="border-amber-500/30 bg-gradient-to-br from-amber-50/40 via-white/60 to-brand-primary/5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 shadow-inner mt-0.5">
+              <Shield className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-brand-dark">
+                {t.superAdminExecutiveHub}
+              </h3>
+              <p className="text-xs text-brand-dark/80 leading-relaxed font-medium">
+                {t.superAdminExecutiveNotice}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick System Indicators */}
+          <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-amber-500/20 text-center">
+            <div className="p-2 rounded-xl bg-white/50 border border-white/70">
+              <div className="text-[10px] font-bold text-brand-muted uppercase">Geofence</div>
+              <div className="text-xs font-bold text-emerald-700 mt-0.5">100m Active</div>
+            </div>
+            <div className="p-2 rounded-xl bg-white/50 border border-white/70">
+              <div className="text-[10px] font-bold text-brand-muted uppercase">QR Security</div>
+              <div className="text-xs font-bold text-brand-primary mt-0.5">20s HMAC</div>
+            </div>
+            <div className="p-2 rounded-xl bg-white/50 border border-white/70">
+              <div className="text-[10px] font-bold text-brand-muted uppercase">Database</div>
+              <div className="text-xs font-bold text-blue-700 mt-0.5">Neon Cloud</div>
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Administrative Quick Actions */}
+        <div className="space-y-2.5">
+          <h4 className="text-xs font-bold text-brand-dark uppercase tracking-wider px-1">
+            {isMarathi ? "प्रशासकीय साधने" : "Executive Controls"}
+          </h4>
+
+          {/* Action 1: Admin Suite */}
+          <GlassCard
+            onClick={() => navigate("/admin")}
+            className="cursor-pointer hover:border-brand-primary/60 transition-all hover:scale-[1.01] active:scale-[0.99] border-brand-primary/30"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-700 flex items-center justify-center shrink-0 shadow-inner">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-brand-dark">{t.adminPanel}</h4>
+                  <p className="text-xs text-brand-muted mt-0.5 max-w-[220px] sm:max-w-xs leading-snug">
+                    {t.superAdminAdminSuiteDesc}
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/60 flex items-center justify-center text-brand-muted group-hover:text-brand-dark shadow-sm">
+                <ArrowRight className="w-4 h-4 text-brand-primary" />
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Action 2: Office Kiosk */}
+          <GlassCard
+            onClick={() => navigate("/kiosk")}
+            className="cursor-pointer hover:border-blue-500/60 transition-all hover:scale-[1.01] active:scale-[0.99] border-blue-500/30"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/15 text-blue-700 flex items-center justify-center shrink-0 shadow-inner">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-brand-dark">{t.superAdminLaunchKiosk}</h4>
+                  <p className="text-xs text-brand-muted mt-0.5 max-w-[220px] sm:max-w-xs leading-snug">
+                    {t.superAdminKioskDesc}
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/60 flex items-center justify-center text-brand-muted group-hover:text-brand-dark shadow-sm">
+                <ArrowRight className="w-4 h-4 text-blue-600" />
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Action 3: History & Reports */}
+          <GlassCard
+            onClick={() => navigate("/history")}
+            className="cursor-pointer hover:border-purple-500/60 transition-all hover:scale-[1.01] active:scale-[0.99] border-purple-500/30"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/15 text-purple-700 flex items-center justify-center shrink-0 shadow-inner">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-brand-dark">{t.history}</h4>
+                  <p className="text-xs text-brand-muted mt-0.5 max-w-[220px] sm:max-w-xs leading-snug">
+                    {t.superAdminHistoryDesc}
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/60 flex items-center justify-center text-brand-muted group-hover:text-brand-dark shadow-sm">
+                <ArrowRight className="w-4 h-4 text-purple-600" />
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // OPERATIONAL STAFF ATTENDANCE VIEW
+  // ==========================================
   return (
     <div className="space-y-4">
       {/* Greeting Header */}

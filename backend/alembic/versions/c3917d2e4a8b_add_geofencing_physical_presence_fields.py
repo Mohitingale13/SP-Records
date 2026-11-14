@@ -39,3 +39,4 @@ def downgrade() -> None:
         batch_op.drop_column('client_ip')
         batch_op.drop_column('reported_accuracy_meters')
         batch_op.drop_column('verified_distance_meters')
+

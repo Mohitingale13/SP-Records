@@ -1,3 +1,5 @@
+import os
+import sys
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -18,10 +20,24 @@ logger = logging.getLogger("sp_attendance")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure database schema is created (for dev/sqlite) and seed essentials
+    # Ensure database schema is created and upgraded to head
     logger.info("Initializing database tables and base seed data...")
     Base.metadata.create_all(bind=engine)
-    
+
+    # Automatically apply any pending Alembic schema migrations on startup (outside test runs)
+    if "pytest" not in sys.modules and not os.environ.get("TESTING"):
+        alembic_ini_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alembic.ini")
+        if os.path.exists(alembic_ini_path):
+            try:
+                from alembic.config import Config
+                from alembic import command
+
+                alembic_cfg = Config(alembic_ini_path)
+                command.upgrade(alembic_cfg, "head")
+                logger.info("Database schema migrations verified at head.")
+            except Exception as exc:
+                logger.warning("Alembic auto-migration check notice: %s", exc)
+
     db = SessionLocal()
     try:
         AuthService.get_or_create_organization(db)

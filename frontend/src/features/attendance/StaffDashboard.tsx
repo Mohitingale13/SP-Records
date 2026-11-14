@@ -18,6 +18,7 @@ import {
   Coffee,
   Calendar,
   Info,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -140,9 +141,10 @@ export const StaffDashboard: React.FC = () => {
           </div>
           <button
             onClick={() => setSuccessBanner(null)}
-            className="text-xs font-bold text-emerald-700 ml-2"
+            className="p-1 rounded-full hover:bg-emerald-600/20 text-emerald-700 transition-colors ml-2"
+            aria-label="Dismiss"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}

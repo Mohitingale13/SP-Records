@@ -15,6 +15,7 @@ import type {
 } from "../../types";
 import {
   Shield,
+  ShieldAlert,
   QrCode,
   Calendar,
   RefreshCw,
@@ -394,7 +395,13 @@ export const AdminDashboard: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{actionSuccess}</span>
           </div>
-          <button onClick={() => setActionSuccess(null)} className="font-bold ml-2">✕</button>
+          <button
+            onClick={() => setActionSuccess(null)}
+            className="p-1 rounded-full hover:bg-emerald-600/20 text-emerald-700 transition-colors ml-2"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -470,7 +477,13 @@ export const AdminDashboard: React.FC = () => {
             }`}
           >
             <span>{reportFeedback.message}</span>
-            <button onClick={() => setReportFeedback(null)} className="font-bold ml-2">✕</button>
+            <button
+              onClick={() => setReportFeedback(null)}
+              className="p-1 rounded-full hover:bg-black/10 text-brand-dark transition-colors ml-2"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
@@ -622,7 +635,7 @@ export const AdminDashboard: React.FC = () => {
                     <span className="font-bold">{evt.event_type.replace(/_/g, " ")}</span>:{" "}
                     {evt.scanned_at_ist}
                     {evt.is_manually_corrected && (
-                      <span className="text-amber-600 font-bold">*</span>
+                      <ShieldAlert className="w-2.5 h-2.5 text-amber-600 inline ml-0.5" />
                     )}
                     <Edit2 className="w-2.5 h-2.5 text-brand-muted hover:text-brand-primary" />
                   </button>
@@ -744,6 +757,13 @@ export const AdminDashboard: React.FC = () => {
       {roleActionStaff && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
           <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
+            <button
+              onClick={() => setRoleActionStaff(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <h3 className="text-base font-bold text-brand-dark mb-1">
               {roleActionStaff.role === "ADMIN" ? t.revokeAdmin : t.assignAdmin}
             </h3>
@@ -780,6 +800,13 @@ export const AdminDashboard: React.FC = () => {
       {selectedStaff && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
           <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
+            <button
+              onClick={() => setSelectedStaff(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <h3 className="text-base font-bold text-brand-dark mb-1">
               Manual Attendance Adjustment
             </h3>
@@ -865,6 +892,13 @@ export const AdminDashboard: React.FC = () => {
       {correctingEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
           <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
+            <button
+              onClick={() => setCorrectingEvent(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <h3 className="text-base font-bold text-brand-dark mb-1">
               {t.editRecord}
             </h3>
@@ -1109,6 +1143,13 @@ export const AdminDashboard: React.FC = () => {
       {resetPinStaff && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
           <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
+            <button
+              onClick={() => setResetPinStaff(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <h3 className="text-base font-bold text-brand-dark mb-1 flex items-center gap-2">
               <KeyRound className="w-5 h-5 text-amber-600" />
               <span>{t.resetPinTitle}</span>

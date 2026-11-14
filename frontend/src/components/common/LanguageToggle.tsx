@@ -1,31 +1,38 @@
 import React from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { IOSSegmentedSwitch, type SegmentOption } from "./IOSSegmentedSwitch";
+import type { Language } from "../../i18n/translations";
 
-export const LanguageToggle: React.FC = () => {
+interface LanguageToggleProps {
+  compact?: boolean;
+  className?: string;
+  size?: "sm" | "md";
+}
+
+export const LanguageToggle: React.FC<LanguageToggleProps> = ({
+  compact = false,
+  className = "",
+  size = "sm",
+}) => {
   const { language, setLanguage } = useLanguage();
 
+  const options: [SegmentOption<Language>, SegmentOption<Language>] = compact
+    ? [
+        { value: "en", label: "EN" },
+        { value: "mr", label: "MR" },
+      ]
+    : [
+        { value: "en", label: "English" },
+        { value: "mr", label: "मराठी" },
+      ];
+
   return (
-    <div className="inline-flex p-1 rounded-xl bg-white/50 border border-white/70 backdrop-blur-md shadow-sm">
-      <button
-        onClick={() => setLanguage("en")}
-        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1 ${
-          language === "en"
-            ? "bg-brand-primary text-white shadow-sm"
-            : "text-brand-dark/70 hover:text-brand-dark"
-        }`}
-      >
-        <span>English</span>
-      </button>
-      <button
-        onClick={() => setLanguage("mr")}
-        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1 font-devanagari ${
-          language === "mr"
-            ? "bg-brand-primary text-white shadow-sm"
-            : "text-brand-dark/70 hover:text-brand-dark"
-        }`}
-      >
-        <span>मराठी</span>
-      </button>
-    </div>
+    <IOSSegmentedSwitch<Language>
+      options={options}
+      value={language}
+      onChange={(lang) => setLanguage(lang)}
+      size={size}
+      className={className}
+    />
   );
 };

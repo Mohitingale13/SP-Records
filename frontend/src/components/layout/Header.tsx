@@ -12,33 +12,33 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-30 w-full glass-header px-4 py-2.5 flex items-center justify-between">
+    <header className="sticky top-0 z-30 w-full glass-header px-3.5 py-2 flex items-center justify-between gap-2">
       <div
-        className="flex items-center gap-2.5 cursor-pointer"
+        className="flex items-center gap-2 cursor-pointer min-w-0 flex-1 mr-1"
         onClick={() => navigate("/")}
       >
         <div className="relative flex-shrink-0 drop-shadow-sm">
-          <ShivamLogo size={42} variant="circle" />
+          <ShivamLogo size={36} variant="circle" />
         </div>
-        <div>
-          <h1 className="text-base font-bold text-brand-dark leading-tight tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-sm font-bold text-brand-dark leading-tight tracking-tight truncate">
             {t.appName}
           </h1>
-          <p className="text-[11px] text-brand-muted font-medium">
+          <p className="text-[10px] text-brand-muted font-medium truncate">
             {t.appSubtitle}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <LanguageToggle />
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <LanguageToggle compact={isAuthenticated} size="sm" />
         {isAuthenticated && (
           <button
             onClick={logout}
             title={t.logout}
-            className="p-2 rounded-xl bg-white/50 border border-white/70 hover:bg-white/80 active:scale-95 text-brand-dark transition-all shadow-sm"
+            className="p-1.5 rounded-full bg-white/50 border border-white/70 hover:bg-white/80 active:scale-95 text-brand-dark transition-all shadow-sm"
           >
-            <LogOut className="w-4 h-4 text-brand-muted" />
+            <LogOut className="w-3.5 h-3.5 text-brand-muted" />
           </button>
         )}
       </div>

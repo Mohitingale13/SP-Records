@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { ShivamLogo } from "../../components/common/ShivamLogo";
+import { IOSSegmentedSwitch } from "../../components/common/IOSSegmentedSwitch";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { authAPI } from "../../services/api";
@@ -116,32 +117,18 @@ export const LoginScreen: React.FC = () => {
       </div>
 
       <GlassCard className="relative overflow-hidden">
-        {/* Navigation Tabs */}
-        <div className="flex bg-brand-primary/10 rounded-xl p-1 mb-5 border border-brand-primary/20">
-          <button
-            type="button"
-            onClick={() => handleTabChange("login")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === "login"
-                ? "bg-white text-brand-dark shadow-sm"
-                : "text-brand-muted hover:text-brand-dark"
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>{t.loginTab}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange("register")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === "register"
-                ? "bg-white text-brand-dark shadow-sm"
-                : "text-brand-muted hover:text-brand-dark"
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>{t.registerTab}</span>
-          </button>
+        {/* Navigation Tabs - iOS Liquid Capsule Switch */}
+        <div className="mb-5">
+          <IOSSegmentedSwitch<"login" | "register">
+            options={[
+              { value: "login", label: t.loginTab, icon: <Lock className="w-3.5 h-3.5" /> },
+              { value: "register", label: t.registerTab, icon: <User className="w-3.5 h-3.5" /> },
+            ]}
+            value={activeTab}
+            onChange={handleTabChange}
+            size="md"
+            className="w-full"
+          />
         </div>
 
         {error && (

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { StatusBadge } from "../../components/common/Badge";
+import { IOSSegmentedSwitch } from "../../components/common/IOSSegmentedSwitch";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { adminAPI, reportsAPI } from "../../services/api";
@@ -449,28 +450,15 @@ export const AdminDashboard: React.FC = () => {
             <span>{t.reportsTitle}</span>
           </h3>
 
-          <div className="flex bg-white/60 p-0.5 rounded-lg border border-white/80">
-            <button
-              onClick={() => setReportType("weekly")}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                reportType === "weekly"
-                  ? "bg-brand-primary text-white shadow-sm"
-                  : "text-brand-muted hover:text-brand-dark"
-              }`}
-            >
-              {t.weeklyReport}
-            </button>
-            <button
-              onClick={() => setReportType("monthly")}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                reportType === "monthly"
-                  ? "bg-brand-primary text-white shadow-sm"
-                  : "text-brand-muted hover:text-brand-dark"
-              }`}
-            >
-              {t.monthlyReport}
-            </button>
-          </div>
+          <IOSSegmentedSwitch<"weekly" | "monthly">
+            options={[
+              { value: "weekly", label: t.weeklyReport },
+              { value: "monthly", label: t.monthlyReport },
+            ]}
+            value={reportType}
+            onChange={(val) => setReportType(val)}
+            size="sm"
+          />
         </div>
 
         {reportFeedback && (
@@ -588,10 +576,10 @@ export const AdminDashboard: React.FC = () => {
             <button
               key={pill.id}
               onClick={() => setStatusFilter(pill.id as any)}
-              className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all ${
+              className={`px-3 py-1 rounded-full text-[11px] whitespace-nowrap transition-all duration-200 cursor-pointer ${
                 statusFilter === pill.id
-                  ? "bg-brand-primary text-white shadow-sm"
-                  : "bg-white/60 text-brand-dark hover:bg-white/80"
+                  ? "bg-white/90 text-brand-dark border-[1.5px] border-white shadow-[0_2px_8px_rgba(21,59,67,0.12),inset_0_1px_1.5px_rgba(255,255,255,1)] font-bold scale-[1.02]"
+                  : "bg-white/40 text-brand-muted hover:text-brand-dark border border-white/60 font-medium"
               }`}
             >
               {pill.label}

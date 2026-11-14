@@ -37,6 +37,19 @@ class Settings(BaseSettings):
     # Localization
     TIMEZONE: str = "Asia/Kolkata"
 
+    # Physical Presence Geofencing (Official Shivam Patsanstha Registered Office)
+    OFFICE_LATITUDE: float = 18.1361880
+    OFFICE_LONGITUDE: float = 74.5104810
+    ATTENDANCE_GEOFENCE_RADIUS_METERS: float = 100.0
+    PREFERRED_LOCATION_ACCURACY_METERS: float = 50.0
+    MAX_ACCEPTABLE_LOCATION_ACCURACY_METERS: float = 100.0
+    LOCATION_TIMESTAMP_MAX_AGE_SECONDS: int = 120
+
+    # Optional Office Wi-Fi / IP Restriction (disabled by default)
+    OFFICE_WIFI_RESTRICTION_ENABLED: bool = False
+    OFFICE_ALLOWED_IPS: List[str] = []
+    TRUSTED_PROXIES: List[str] = ["127.0.0.1", "::1"]
+
     # CORS Configuration
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

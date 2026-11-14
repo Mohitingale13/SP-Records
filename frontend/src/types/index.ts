@@ -28,6 +28,26 @@ export interface AttendanceEvent {
   scanned_at: string;
   scanned_at_ist: string;
   is_manually_corrected: boolean;
+  verified_distance_meters?: number | null;
+  reported_accuracy_meters?: number | null;
+  verification_method?: "QR_GPS" | "MANUAL_ADMIN" | string | null;
+}
+
+export interface ScanLocationPayload {
+  qr_token: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  location_timestamp?: string;
+}
+
+export interface OfficeLocationConfig {
+  office_latitude: number;
+  office_longitude: number;
+  geofence_radius_meters: number;
+  preferred_accuracy_meters: number;
+  max_accuracy_meters: number;
+  wifi_restriction_enabled: boolean;
 }
 
 export interface AttendanceStatusSummary {

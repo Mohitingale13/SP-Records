@@ -1,8 +1,8 @@
 from __future__ import annotations
 import uuid
 from datetime import datetime
-from typing import List, Any
-from sqlalchemy import String, Boolean, DateTime, Uuid
+from typing import List, Optional, Any
+from sqlalchemy import String, Boolean, DateTime, Uuid, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.core.timezone import utc_now
@@ -15,6 +15,12 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Configurable Office Geofence Coordinates
+    office_latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    office_longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    geofence_radius_meters: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 

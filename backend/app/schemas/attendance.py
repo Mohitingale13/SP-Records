@@ -7,6 +7,10 @@ from app.models.attendance import AttendanceEventType
 
 class AttendanceScanRequest(BaseModel):
     qr_token: str = Field(..., description="The signed rotating QR token scanned by the mobile camera")
+    latitude: float = Field(..., ge=-90.0, le=90.0, description="Device latitude from native Geolocation API")
+    longitude: float = Field(..., ge=-180.0, le=180.0, description="Device longitude from native Geolocation API")
+    accuracy: float = Field(..., gt=0.0, description="Reported device GPS accuracy in meters")
+    location_timestamp: Optional[datetime] = Field(None, description="Timestamp when the GPS coordinate fix was captured")
 
 
 class AttendanceEventSchema(BaseModel):
@@ -16,6 +20,9 @@ class AttendanceEventSchema(BaseModel):
     scanned_at: datetime
     scanned_at_ist: str
     is_manually_corrected: bool
+    verified_distance_meters: Optional[float] = None
+    reported_accuracy_meters: Optional[float] = None
+    verification_method: Optional[str] = "QR_GPS"
 
     model_config = {"from_attributes": True}
 
@@ -42,3 +49,18 @@ class AttendanceCorrectionRequest(BaseModel):
     new_scanned_at: Optional[datetime] = None
     reason: str = Field(..., min_length=5, description="Mandatory audit justification for correction")
 
+
+class OfficeLocationResponse(BaseModel):
+    office_latitude: float
+    office_longitude: float
+    geofence_radius_meters: float
+    preferred_accuracy_meters: float
+    max_accuracy_meters: float
+    wifi_restriction_enabled: bool
+
+
+class OfficeLocationUpdateRequest(BaseModel):
+    office_latitude: float = Field(..., ge=-90.0, le=90.0)
+    office_longitude: float = Field(..., ge=-180.0, le=180.0)
+    geofence_radius_meters: float = Field(..., gt=0.0, le=10000.0)
+    reason: str = Field(..., min_length=5, description="Audit justification for altering official office geofence")

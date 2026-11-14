@@ -91,3 +91,66 @@ sequenceDiagram
 3. **Transport Security**:
    - HTTPS mandatory for both camera hardware access and transmission of QR tokens.
 
+---
+
+## 6. Physical Presence Verification & Server-Side GPS Geofencing (Phase 2.3)
+
+To eliminate the vulnerability where a staff member photographs the rotating QR code and relays it via messaging to mark remote attendance, the application mandates **physical presence verification** combining rotating HMAC QR with **Server-Side GPS Geofencing**.
+
+### 6.1 Architecture Principles
+1. **Native Browser Geolocation**: Zero third-party paid location APIs or external tracking subscriptions. Uses native HTML5 `navigator.geolocation.getCurrentPosition` with `enableHighAccuracy: true`.
+2. **Server-Side Final Authority**: Frontend coordinates are never blindly trusted. The backend recalculates great-circle distance using the Haversine formula against official office coordinates.
+3. **Privacy & Employee Protection**: Staff are **not** continuously tracked. GPS is only queried at the moment of scanning. Raw coordinates are never logged or exposed in staff-facing views. Only the calculated distance (`verified_distance_meters`) and reported accuracy (`reported_accuracy_meters`) are persisted.
+
+### 6.2 Official Office Coordinates & Thresholds
+- **Official Registered Office**: Shivam Patsanstha, Phaltan
+- **Latitude**: `18.1361880`
+- **Longitude**: `74.5104810`
+- **Permitted Geofence Radius**: `100.0` meters
+- **Preferred GPS Accuracy**: $\le 50.0$ meters
+- **Maximum Acceptable Accuracy**: $\le 100.0$ meters (scans with accuracy $>100$m are rejected with clear user retry guidance)
+- **Location Timestamp Freshness**: $\le 120$ seconds (prevents coordinate replay attacks)
+
+### 6.3 Mathematical Formula (Haversine)
+The great-circle distance $d$ in meters between office $(\phi_1, \lambda_1)$ and staff device $(\phi_2, \lambda_2)$ is computed as:
+$$\Delta\phi = \phi_2 - \phi_1, \quad \Delta\lambda = \lambda_2 - \lambda_1$$
+$$a = \sin^2\left(\frac{\Delta\phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta\lambda}{2}\right)$$
+$$c = 2 \cdot \operatorname{atan2}\left(\sqrt{a}, \sqrt{1-a}\right)$$
+$$d = R \cdot c \quad \text{where } R = 6,371,000 \text{ meters}$$
+
+### 6.4 Verification Workflow Sequence
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as Staff Mobile Device
+    participant Kiosk as Office Reception Kiosk
+    participant Browser as Browser Geolocation API
+    participant API as FastAPI Backend
+    participant DB as Database
+
+    Staff->>Kiosk: Scans 20-second rotating QR token
+    Staff->>Staff: Decodes QR token
+    Staff->>Browser: Request high-accuracy GPS position
+    Browser-->>Staff: Return (lat, lon, accuracy, timestamp)
+    Staff->>Staff: Check accuracy (reject if > 100m)
+    Staff->>API: POST /api/v1/attendance/scan (token, lat, lon, accuracy, timestamp)
+    API->>API: 1. Validate coordinate ranges (-90..90, -180..180)
+    API->>API: 2. Validate timestamp freshness (<= 120s old)
+    API->>API: 3. Validate accuracy (<= 100m)
+    API->>API: 4. Compute Haversine distance from registered office
+    alt Distance > 100m (Outside geofence)
+        API-->>Staff: 400 Bad Request: "Outside office geofence (~Xm away)"
+    else Within geofence (<= 100m)
+        API->>API: 5. Verify HMAC QR signature & expiry
+        API->>DB: 6. Enforce Nonce Replay Protection
+        API->>API: 7. Enforce Attendance State Machine
+        API->>DB: 8. Insert attendance_records (verified_distance, accuracy, method="QR_GPS")
+        API-->>Staff: 200 OK: Event confirmed with confetti & IST timestamp
+    end
+```
+
+### 6.5 Super Admin Configuration & Manual Adjustments
+- **Dynamic Office Location Configuration**: Super Admin can inspect and reconfigure office coordinates or radius with mandatory justification via `GET /api/v1/admin/office-location` and `PATCH /api/v1/admin/office-location`.
+- **Manual Exception Tracking**: Legitimate exceptions (e.g. employee phone broken) can be recorded by Admin via `POST /api/v1/admin/attendance/manual-add` with mandatory justification, tagged with `verification_method="MANUAL_ADMIN"`, and logged in the immutable audit trail.
+
+

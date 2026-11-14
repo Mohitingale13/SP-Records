@@ -123,6 +123,21 @@ export interface Translations {
   newTime: string;
   newEvent: string;
   correctSuccess: string;
+
+  // Physical Presence & GPS
+  locationAcquiring: string;
+  locationVerifying: string;
+  locationPermissionDenied: string;
+  locationAccuracyWarning: string;
+  locationOutsideGeofence: string;
+  locationNotSupported: string;
+  locationTimeout: string;
+  verifiedDistance: string;
+  gpsVerifiedBadge: string;
+  manualAdminBadge: string;
+  officeLocationSettings: string;
+  officeCoordinates: string;
+  geofenceRadius: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -249,6 +264,21 @@ export const translations: Record<Language, Translations> = {
     newTime: "New Time (HH:MM)",
     newEvent: "New Event Type",
     correctSuccess: "Attendance record corrected successfully!",
+
+    // Physical Presence & GPS
+    locationAcquiring: "Acquiring GPS location...",
+    locationVerifying: "Verifying office proximity...",
+    locationPermissionDenied: "Location permission denied. Physical presence verification requires GPS access. Please enable location in your browser settings.",
+    locationAccuracyWarning: "GPS accuracy is low. High accuracy (<50m) recommended. Move near a window or open area and retry.",
+    locationOutsideGeofence: "Outside office geofence. Attendance can only be recorded within Shivam Patsanstha office premises.",
+    locationNotSupported: "Geolocation is not supported by your browser.",
+    locationTimeout: "Location request timed out. Please ensure GPS is enabled and try again.",
+    verifiedDistance: "Office Distance",
+    gpsVerifiedBadge: "GPS Verified",
+    manualAdminBadge: "Manual (Admin)",
+    officeLocationSettings: "Office Location Settings",
+    officeCoordinates: "Office Coordinates",
+    geofenceRadius: "Geofence Radius (meters)",
   },
   mr: {
     appName: "शिवम पतसंस्था",
@@ -373,5 +403,20 @@ export const translations: Record<Language, Translations> = {
     newTime: "नवीन वेळ (HH:MM)",
     newEvent: "नवीन उपस्थिती प्रकार",
     correctSuccess: "उपस्थिती नोंद यशस्वीरित्या दुरुस्त केली गेली!",
+
+    // Physical Presence & GPS
+    locationAcquiring: "जीपीएस स्थान मिळवत आहे...",
+    locationVerifying: "कार्यालय अंतर तपासत आहे...",
+    locationPermissionDenied: "स्थान परवानगी नाकारली. उपस्थितीसाठी जीपीएस आवश्यक आहे. कृपया ब्राऊझर सेटिंग्जमध्ये स्थान परवानगी सुरू करा.",
+    locationAccuracyWarning: "जीपीएस अचूकता कमी आहे. अचूकतेसाठी (<५०मी) मोकळ्या जागेत येऊन पुन्हा प्रयत्न करा.",
+    locationOutsideGeofence: "कार्यालय सीमेबाहेर. उपस्थिती फक्त शिवम पतसंस्थेच्या कार्यालयातच नोंदवली जाऊ शकते.",
+    locationNotSupported: "तुमचा ब्राऊझर जिओलोकेशनला सपोर्ट करत नाही.",
+    locationTimeout: "स्थान मिळवण्याची वेळ संपली. कृपया जीपीएस सुरू असल्याची खात्री करा आणि पुन्हा प्रयत्न करा.",
+    verifiedDistance: "कार्यालयापासून अंतर",
+    gpsVerifiedBadge: "जीपीएस सत्यापित",
+    manualAdminBadge: "मॅन्युअल (अ‍ॅडमिन)",
+    officeLocationSettings: "कार्यालय स्थान सेटिंग्ज",
+    officeCoordinates: "कार्यालय निर्देशांक",
+    geofenceRadius: "जिओफेन्स मर्यादा (मीटर)",
   },
 };

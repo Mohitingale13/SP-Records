@@ -12,6 +12,7 @@ import type {
   UserSummary,
   AttendanceEvent,
   AuditLog,
+  OfficeLocationConfig,
 } from "../../types";
 import {
   Shield,
@@ -21,6 +22,7 @@ import {
   RefreshCw,
   PlusCircle,
   AlertTriangle,
+  AlertCircle,
   FileDown,
   Search,
   CheckCircle2,
@@ -35,6 +37,7 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  MapPin,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -104,6 +107,17 @@ export const AdminDashboard: React.FC = () => {
   const [resetPinError, setResetPinError] = useState<string | null>(null);
   const [showNewStaffPin, setShowNewStaffPin] = useState(false);
 
+  // Office Location Configuration State (Super Admin)
+  const [officeLocation, setOfficeLocation] = useState<OfficeLocationConfig | null>(null);
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [editLat, setEditLat] = useState("");
+  const [editLon, setEditLon] = useState("");
+  const [editRadius, setEditRadius] = useState("");
+  const [locationReason, setLocationReason] = useState("");
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
+  const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
+
   const handleResetPinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetPinStaff) return;
@@ -161,6 +175,19 @@ export const AdminDashboard: React.FC = () => {
     }
   }, [isSuperAdmin]);
 
+  const fetchOfficeLocation = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const data = await adminAPI.getOfficeLocation();
+      setOfficeLocation(data);
+      setEditLat(data.office_latitude.toString());
+      setEditLon(data.office_longitude.toString());
+      setEditRadius(data.geofence_radius_meters.toString());
+    } catch (err) {
+      console.error("Failed to load office location:", err);
+    }
+  }, [isSuperAdmin]);
+
   useEffect(() => {
     fetchMonitor();
   }, [fetchMonitor]);
@@ -168,6 +195,55 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchStaffList();
   }, [fetchStaffList]);
+
+  useEffect(() => {
+    fetchOfficeLocation();
+  }, [fetchOfficeLocation]);
+
+  const handleUpdateLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationReason || locationReason.trim().length < 5) {
+      setLocationError("Please enter a valid justification (minimum 5 characters).");
+      return;
+    }
+    const lat = parseFloat(editLat);
+    const lon = parseFloat(editLon);
+    const rad = parseFloat(editRadius);
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      setLocationError("Latitude must be between -90 and 90.");
+      return;
+    }
+    if (isNaN(lon) || lon < -180 || lon > 180) {
+      setLocationError("Longitude must be between -180 and 180.");
+      return;
+    }
+    if (isNaN(rad) || rad <= 0 || rad > 10000) {
+      setLocationError("Radius must be greater than 0 meters (max 10,000m).");
+      return;
+    }
+
+    setIsUpdatingLocation(true);
+    setLocationError(null);
+    setLocationSuccess(null);
+
+    try {
+      const updated = await adminAPI.updateOfficeLocation({
+        office_latitude: lat,
+        office_longitude: lon,
+        geofence_radius_meters: rad,
+        reason: locationReason.trim(),
+      });
+      setOfficeLocation(updated);
+      setIsEditingLocation(false);
+      setLocationReason("");
+      setLocationSuccess("Office coordinates & geofence updated successfully!");
+      setTimeout(() => setLocationSuccess(null), 4000);
+    } catch (err: any) {
+      setLocationError(err.response?.data?.detail || "Failed to update office location.");
+    } finally {
+      setIsUpdatingLocation(false);
+    }
+  };
 
   // Filtered staff list for attendance monitor
   const filteredStaffAttendance = useMemo(() => {
@@ -634,6 +710,23 @@ export const AdminDashboard: React.FC = () => {
                   >
                     <span className="font-bold">{evt.event_type.replace(/_/g, " ")}</span>:{" "}
                     {evt.scanned_at_ist}
+                    {evt.verification_method === "QR_GPS" && (
+                      <span
+                        className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5"
+                        title={`GPS Verified: ${evt.verified_distance_meters !== null && evt.verified_distance_meters !== undefined ? `${Math.round(evt.verified_distance_meters)}m from office` : "Verified"}`}
+                      >
+                        <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                        {evt.verified_distance_meters !== null && evt.verified_distance_meters !== undefined
+                          ? `${Math.round(evt.verified_distance_meters)}m`
+                          : "GPS"}
+                      </span>
+                    )}
+                    {evt.verification_method === "MANUAL_ADMIN" && (
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
+                        <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
+                        Manual
+                      </span>
+                    )}
                     {evt.is_manually_corrected && (
                       <ShieldAlert className="w-2.5 h-2.5 text-amber-600 inline ml-0.5" />
                     )}
@@ -750,6 +843,166 @@ export const AdminDashboard: React.FC = () => {
               })
             )}
           </div>
+        </GlassCard>
+      )}
+
+      {/* Super Admin Office Location & Geofence Settings Section */}
+      {isSuperAdmin && (
+        <GlassCard className="!p-4 space-y-3 border-emerald-500/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-800">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-brand-dark uppercase tracking-wider">
+                  {t.officeLocationSettings}
+                </h3>
+                <p className="text-[11px] text-brand-muted">
+                  Official Shivam Patsanstha GPS coordinates and permitted geofence boundary.
+                </p>
+              </div>
+            </div>
+
+            {!isEditingLocation ? (
+              <button
+                onClick={() => {
+                  setIsEditingLocation(true);
+                  setLocationError(null);
+                  setLocationSuccess(null);
+                }}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all flex items-center gap-1 shadow-sm"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Configure</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsEditingLocation(false)}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-200 text-brand-dark hover:bg-gray-300 transition-all flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Cancel</span>
+              </button>
+            )}
+          </div>
+
+          {locationSuccess && (
+            <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-900 text-xs font-medium flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{locationSuccess}</span>
+            </div>
+          )}
+
+          {locationError && (
+            <div className="p-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-900 text-xs font-medium flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{locationError}</span>
+            </div>
+          )}
+
+          {!isEditingLocation ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs">
+              <div className="p-2.5 rounded-xl bg-white/60 border border-white/80">
+                <span className="text-[10px] text-brand-muted block font-semibold">OFFICE LATITUDE</span>
+                <span className="font-mono font-bold text-brand-dark">
+                  {officeLocation?.office_latitude ?? "18.1361880"}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/60 border border-white/80">
+                <span className="text-[10px] text-brand-muted block font-semibold">OFFICE LONGITUDE</span>
+                <span className="font-mono font-bold text-brand-dark">
+                  {officeLocation?.office_longitude ?? "74.5104810"}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/60 border border-white/80">
+                <span className="text-[10px] text-brand-muted block font-semibold">GEOFENCE RADIUS</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  {officeLocation?.geofence_radius_meters ?? "100"} meters
+                </span>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleUpdateLocation} className="space-y-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-brand-dark block mb-1">
+                    Latitude (-90 to 90)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0000001"
+                    value={editLat}
+                    onChange={(e) => setEditLat(e.target.value)}
+                    required
+                    className="glass-input text-xs w-full font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-dark block mb-1">
+                    Longitude (-180 to 180)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0000001"
+                    value={editLon}
+                    onChange={(e) => setEditLon(e.target.value)}
+                    required
+                    className="glass-input text-xs w-full font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-brand-dark block mb-1">
+                    Geofence Radius (meters)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="10"
+                    max="10000"
+                    value={editRadius}
+                    onChange={(e) => setEditRadius(e.target.value)}
+                    required
+                    className="glass-input text-xs w-full font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-brand-dark block mb-1">
+                  Audit Justification / Reason (Mandatory)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Relocated to newly inaugurated branch premises"
+                  value={locationReason}
+                  onChange={(e) => setLocationReason(e.target.value)}
+                  required
+                  minLength={5}
+                  className="glass-input text-xs w-full"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsEditingLocation(false)}
+                  className="text-xs !py-1.5 px-3"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isLoading={isUpdatingLocation}
+                  className="text-xs !py-1.5 px-3"
+                >
+                  Save Coordinates
+                </Button>
+              </div>
+            </form>
+          )}
         </GlassCard>
       )}
 
@@ -1020,8 +1273,20 @@ export const AdminDashboard: React.FC = () => {
                     className="p-2.5 rounded-xl bg-white/60 border border-white/80 flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-brand-dark flex items-center gap-1.5">
+                      <div className="font-bold text-brand-dark flex items-center gap-1.5 flex-wrap">
                         <span>{rec.event_type.replace(/_/g, " ")}</span>
+                        {rec.verification_method === "QR_GPS" && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5">
+                            <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                            GPS {rec.verified_distance_meters !== null && rec.verified_distance_meters !== undefined ? `${Math.round(rec.verified_distance_meters)}m` : "Verified"}
+                          </span>
+                        )}
+                        {rec.verification_method === "MANUAL_ADMIN" && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
+                            <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
+                            Manual
+                          </span>
+                        )}
                         {rec.is_manually_corrected && (
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 font-semibold">
                             Corrected

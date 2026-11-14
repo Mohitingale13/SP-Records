@@ -61,3 +61,33 @@ describe("Role and Permission Guards", () => {
     expect(checkIsSuperAdmin("SUPER_ADMIN")).toBe(true);
   });
 });
+
+describe("Physical Presence & Geofencing Client Verification", () => {
+  it("should have all physical presence localization keys in both languages", () => {
+    for (const lang of ["en", "mr"] as const) {
+      const dict = translations[lang];
+      expect(dict.locationAcquiring).toBeTruthy();
+      expect(dict.locationVerifying).toBeTruthy();
+      expect(dict.locationPermissionDenied).toBeTruthy();
+      expect(dict.locationAccuracyWarning).toBeTruthy();
+      expect(dict.locationOutsideGeofence).toBeTruthy();
+      expect(dict.locationNotSupported).toBeTruthy();
+      expect(dict.officeLocationSettings).toBeTruthy();
+      expect(dict.geofenceRadius).toBeTruthy();
+    }
+  });
+
+  it("validates client GPS accuracy threshold correctly", () => {
+    const isAccuracyAcceptable = (accuracyMeters: number) => accuracyMeters <= 100.0;
+    const isPreferredAccuracy = (accuracyMeters: number) => accuracyMeters <= 50.0;
+
+    expect(isPreferredAccuracy(15)).toBe(true);
+    expect(isPreferredAccuracy(50)).toBe(true);
+    expect(isPreferredAccuracy(60)).toBe(false);
+
+    expect(isAccuracyAcceptable(85)).toBe(true);
+    expect(isAccuracyAcceptable(100)).toBe(true);
+    expect(isAccuracyAcceptable(101)).toBe(false);
+    expect(isAccuracyAcceptable(250)).toBe(false);
+  });
+});

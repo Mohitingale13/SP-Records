@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.api.v1.deps import require_admin, require_super_admin
 from app.models.user import User
 from app.models.role import RoleName
+from app.models.organization import Organization
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AttendanceAuditLog
 from app.schemas.auth import AdminResetPinRequest
@@ -16,11 +17,15 @@ from app.schemas.attendance import (
     AttendanceCorrectionRequest,
     AttendanceEventSchema,
     AttendanceStatusSummary,
+    OfficeLocationResponse,
+    OfficeLocationUpdateRequest,
 )
 from app.schemas.audit import AuditLogSchema
 from app.services.attendance_service import AttendanceService
 from app.services.auth_service import AuthService
 from app.services.report_service import ReportService
+from app.services.location_service import LocationService
+from app.core.config import settings
 from app.core.timezone import get_current_kolkata_date, format_kolkata_time
 
 router = APIRouter(prefix="/admin", tags=["Administration"])
@@ -133,6 +138,9 @@ def get_staff_history(
             scanned_at=r.scanned_at,
             scanned_at_ist=format_kolkata_time(r.scanned_at),
             is_manually_corrected=r.is_manually_corrected,
+            verified_distance_meters=r.verified_distance_meters,
+            reported_accuracy_meters=r.reported_accuracy_meters,
+            verification_method=r.verification_method,
         )
         for r in records
     ]
@@ -163,6 +171,9 @@ def manual_add_event(
         scanned_at=record.scanned_at,
         scanned_at_ist=format_kolkata_time(record.scanned_at),
         is_manually_corrected=record.is_manually_corrected,
+        verified_distance_meters=record.verified_distance_meters,
+        reported_accuracy_meters=record.reported_accuracy_meters,
+        verification_method=record.verification_method,
     )
 
 
@@ -190,6 +201,63 @@ def correct_event(
         scanned_at=record.scanned_at,
         scanned_at_ist=format_kolkata_time(record.scanned_at),
         is_manually_corrected=record.is_manually_corrected,
+        verified_distance_meters=record.verified_distance_meters,
+        reported_accuracy_meters=record.reported_accuracy_meters,
+        verification_method=record.verification_method,
+    )
+
+
+@router.get("/office-location", response_model=OfficeLocationResponse, summary="Get official office coordinates & geofence radius")
+def get_office_location(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    lat, lon, radius = LocationService.get_office_geofence(db, str(current_admin.organization_id))
+    return OfficeLocationResponse(
+        office_latitude=lat,
+        office_longitude=lon,
+        geofence_radius_meters=radius,
+        preferred_accuracy_meters=settings.PREFERRED_LOCATION_ACCURACY_METERS,
+        max_accuracy_meters=settings.MAX_ACCEPTABLE_LOCATION_ACCURACY_METERS,
+        wifi_restriction_enabled=settings.OFFICE_WIFI_RESTRICTION_ENABLED,
+    )
+
+
+@router.patch("/office-location", response_model=OfficeLocationResponse, summary="Super Admin updates official office coordinates")
+def update_office_location(
+    payload: OfficeLocationUpdateRequest,
+    db: Session = Depends(get_db),
+    current_super_admin: User = Depends(require_super_admin),
+):
+    org = db.query(Organization).filter(Organization.id == current_super_admin.organization_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    old_lat, old_lon, old_radius = LocationService.get_office_geofence(db, str(current_super_admin.organization_id))
+
+    org.office_latitude = payload.office_latitude
+    org.office_longitude = payload.office_longitude
+    org.geofence_radius_meters = payload.geofence_radius_meters
+
+    # Audit log
+    audit_log = AttendanceAuditLog(
+        attendance_record_id=None,
+        actor_user_id=current_super_admin.id,
+        action="UPDATE_OFFICE_GEOFENCE",
+        reason=payload.reason.strip(),
+        previous_state={"latitude": old_lat, "longitude": old_lon, "radius": old_radius},
+        new_state={"latitude": payload.office_latitude, "longitude": payload.office_longitude, "radius": payload.geofence_radius_meters},
+    )
+    db.add(audit_log)
+    db.commit()
+
+    return OfficeLocationResponse(
+        office_latitude=org.office_latitude,
+        office_longitude=org.office_longitude,
+        geofence_radius_meters=org.geofence_radius_meters,
+        preferred_accuracy_meters=settings.PREFERRED_LOCATION_ACCURACY_METERS,
+        max_accuracy_meters=settings.MAX_ACCEPTABLE_LOCATION_ACCURACY_METERS,
+        wifi_restriction_enabled=settings.OFFICE_WIFI_RESTRICTION_ENABLED,
     )
 
 
@@ -301,5 +369,3 @@ def download_monthly_report(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-

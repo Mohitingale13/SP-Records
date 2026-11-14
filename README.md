@@ -18,7 +18,7 @@ SP-Records/
 │   │   ├── models/             # SQLAlchemy 2.0 ORM models (PEP 563 future annotations)
 │   │   ├── schemas/            # Pydantic v2 schemas
 │   │   └── services/           # Business logic: State Machine, QR engine, Auth, PDF Reports
-│   ├── tests/                  # Pytest test suite (21 tests passing)
+│   ├── tests/                  # Pytest test suite (30 tests passing with 100% success)
 │   ├── requirements.txt        # Python dependencies
 │   └── main.py                 # FastAPI application entrypoint
 ├── frontend/                   # React 19+ TypeScript PWA
@@ -77,7 +77,17 @@ The backend autonomously determines and enforces the chronological event sequenc
 - **Single-use per employee**: A staff member cannot redeem the same QR nonce twice.
 - **Live IST Clock**: Built-in Indian Standard Time digital clock updating every second on the reception kiosk screen with full-screen capability.
 
-### C. Bilingual PDF Reports (English & Marathi Devanagari)
+### C. Physical Presence Verification & Server-Side GPS Geofencing (Phase 2.3)
+- **Zero Third-Party Dependency**: Uses browser native HTML5 Geolocation API (`enableHighAccuracy: true`). Zero paid Google Maps or external tracking subscriptions.
+- **Server-Side Final Authority**: Distance is calculated on the backend via the Haversine formula against official registered office coordinates (`18.1361880, 74.5104810`).
+- **100m Permitted Geofence Radius**: Rejects attendance scans submitted outside the 100-meter office perimeter.
+- **Accuracy Thresholds**: $\le 50$m preferred, $\le 100$m accepted, $> 100$m rejected with clear user retry guidance.
+- **Replay Protection**: Rejects coordinates older than 120 seconds.
+- **Privacy Preservation**: Raw employee coordinates are never logged or exposed in staff-facing views. Only the calculated distance (`verified_distance_meters`) and reported accuracy (`reported_accuracy_meters`) are persisted.
+- **Super Admin Dynamic Calibration**: Super Admin can inspect and update office coordinates and geofence radius directly from the Admin Panel with mandatory audit justification.
+- **Audited Manual Exceptions**: Admins can log manual attendance for broken phones, recorded with `verification_method="MANUAL_ADMIN"` and reason logging.
+
+### D. Bilingual PDF Reports (English & Marathi Devanagari)
 - **Weekly & Monthly Attendance PDF Reports**: Generated on-demand via ReportLab.
 - **Devanagari Font Rendering**: Bundles `NotoSansDevanagari-Regular.ttf` and `NotoSansDevanagari-Bold.ttf` for pristine Marathi script rendering.
 - **Role Guard**: Restricted to `ADMIN` and `SUPER_ADMIN`; regular staff accessing the PDF endpoints are rejected with HTTP 403 Forbidden.

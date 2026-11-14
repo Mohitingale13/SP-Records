@@ -22,11 +22,29 @@ def test_qr_replay_attack_prevention(client: TestClient, db_session: Session):
         qr_token = qr_res.json()["token"]
 
         # First scan succeeds
-        res1 = client.post("/api/v1/attendance/scan", json={"qr_token": qr_token}, headers={"Authorization": f"Bearer {staff_token}"})
+        res1 = client.post(
+            "/api/v1/attendance/scan",
+            json={
+                "qr_token": qr_token,
+                "latitude": settings.OFFICE_LATITUDE,
+                "longitude": settings.OFFICE_LONGITUDE,
+                "accuracy": 15.0,
+            },
+            headers={"Authorization": f"Bearer {staff_token}"},
+        )
         assert res1.status_code == 200
 
         # Second scan with SAME token by the SAME user fails
-        res2 = client.post("/api/v1/attendance/scan", json={"qr_token": qr_token}, headers={"Authorization": f"Bearer {staff_token}"})
+        res2 = client.post(
+            "/api/v1/attendance/scan",
+            json={
+                "qr_token": qr_token,
+                "latitude": settings.OFFICE_LATITUDE,
+                "longitude": settings.OFFICE_LONGITUDE,
+                "accuracy": 15.0,
+            },
+            headers={"Authorization": f"Bearer {staff_token}"},
+        )
         assert res2.status_code == 400
         assert "already used this qr code" in res2.json()["detail"].lower()
     finally:
@@ -48,11 +66,29 @@ def test_multi_user_shared_qr_scan(client: TestClient, db_session: Session):
         qr_token = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"}).json()["token"]
 
         # Employee 1 scans
-        scan1 = client.post("/api/v1/attendance/scan", json={"qr_token": qr_token}, headers={"Authorization": f"Bearer {staff1_token}"})
+        scan1 = client.post(
+            "/api/v1/attendance/scan",
+            json={
+                "qr_token": qr_token,
+                "latitude": settings.OFFICE_LATITUDE,
+                "longitude": settings.OFFICE_LONGITUDE,
+                "accuracy": 15.0,
+            },
+            headers={"Authorization": f"Bearer {staff1_token}"},
+        )
         assert scan1.status_code == 200
 
         # Employee 2 scans SAME QR
-        scan2 = client.post("/api/v1/attendance/scan", json={"qr_token": qr_token}, headers={"Authorization": f"Bearer {staff2_token}"})
+        scan2 = client.post(
+            "/api/v1/attendance/scan",
+            json={
+                "qr_token": qr_token,
+                "latitude": settings.OFFICE_LATITUDE,
+                "longitude": settings.OFFICE_LONGITUDE,
+                "accuracy": 15.0,
+            },
+            headers={"Authorization": f"Bearer {staff2_token}"},
+        )
         assert scan2.status_code == 200
     finally:
         settings.SCAN_MIN_INTERVAL_SECONDS = orig_interval
@@ -71,7 +107,16 @@ def test_tampered_qr_signature_rejection(client: TestClient, db_session: Session
     }
     fake_token = jwt.encode(fake_payload, "completely-wrong-secret-key", algorithm="HS256")
 
-    res = client.post("/api/v1/attendance/scan", json={"qr_token": fake_token}, headers={"Authorization": f"Bearer {staff_token}"})
+    res = client.post(
+        "/api/v1/attendance/scan",
+        json={
+            "qr_token": fake_token,
+            "latitude": settings.OFFICE_LATITUDE,
+            "longitude": settings.OFFICE_LONGITUDE,
+            "accuracy": 15.0,
+        },
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
     assert res.status_code == 400
     assert "invalid qr code signature" in res.json()["detail"].lower()
 
@@ -94,6 +139,15 @@ def test_expired_qr_rejection(client: TestClient, db_session: Session):
     }
     expired_token = jwt.encode(expired_payload, settings.QR_SIGNING_SECRET, algorithm=settings.ALGORITHM)
 
-    res = client.post("/api/v1/attendance/scan", json={"qr_token": expired_token}, headers={"Authorization": f"Bearer {staff_token}"})
+    res = client.post(
+        "/api/v1/attendance/scan",
+        json={
+            "qr_token": expired_token,
+            "latitude": settings.OFFICE_LATITUDE,
+            "longitude": settings.OFFICE_LONGITUDE,
+            "accuracy": 15.0,
+        },
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
     assert res.status_code == 400
     assert "expired" in res.json()["detail"].lower()

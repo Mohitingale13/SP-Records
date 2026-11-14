@@ -17,6 +17,7 @@ from app.schemas.attendance import (
     AttendanceEventSchema,
 )
 from app.services.qr_service import QRCodeService
+from app.services.location_service import LocationService
 
 
 class AttendanceService:
@@ -76,6 +77,9 @@ class AttendanceService:
                 scanned_at=r.scanned_at,
                 scanned_at_ist=format_kolkata_time(r.scanned_at),
                 is_manually_corrected=r.is_manually_corrected,
+                verified_distance_meters=r.verified_distance_meters,
+                reported_accuracy_meters=r.reported_accuracy_meters,
+                verification_method=r.verification_method,
             )
             for r in records
         ]
@@ -90,15 +94,24 @@ class AttendanceService:
 
     @staticmethod
     def process_qr_scan(
-        db: Session, user: User, qr_token: str
+        db: Session,
+        user: User,
+        qr_token: str,
+        latitude: float,
+        longitude: float,
+        accuracy: float,
+        location_timestamp: Optional[datetime] = None,
+        client_ip: Optional[str] = None,
     ) -> Tuple[Optional[AttendanceEventSchema], Optional[str]]:
         """
-        Executes an attendance scan:
+        Executes an attendance scan with server-side physical presence verification:
         1. Determines today's working date (Asia/Kolkata).
         2. Resolves state machine & next expected event.
         3. Enforces debounce/rapid-scan protection.
-        4. Validates & claims the rotating QR token.
-        5. Persists the new AttendanceRecord transactionally.
+        4. Validates GPS geofence against registered Shivam Patsanstha office.
+        5. Validates optional office Wi-Fi allowlist if enabled.
+        6. Validates & claims the rotating QR token.
+        7. Persists the new AttendanceRecord transactionally with verification metadata.
         """
         today_date = get_current_kolkata_date()
         today_records = AttendanceService.get_today_records(db, user.id, today_date)
@@ -119,7 +132,29 @@ class AttendanceService:
             if elapsed_seconds < settings.SCAN_MIN_INTERVAL_SECONDS:
                 return None, f"Rapid scan detected. Please wait {int(settings.SCAN_MIN_INTERVAL_SECONDS - elapsed_seconds)} more seconds."
 
-        # Validate QR token
+        # Physical presence geofencing validation (Server-Side Authority)
+        office_lat, office_lon, radius = LocationService.get_office_geofence(
+            db, str(user.organization_id)
+        )
+        loc_valid, distance, loc_err = LocationService.validate_location(
+            latitude=latitude,
+            longitude=longitude,
+            accuracy=accuracy,
+            location_timestamp=location_timestamp,
+            office_lat=office_lat,
+            office_lon=office_lon,
+            geofence_radius=radius,
+        )
+        if not loc_valid:
+            return None, loc_err
+
+        # Optional Office Wi-Fi / IP restriction check
+        if client_ip:
+            ip_valid, ip_err = LocationService.validate_client_ip(client_ip)
+            if not ip_valid:
+                return None, ip_err
+
+        # Validate rotating HMAC QR token
         is_valid, nonce, error_msg = QRCodeService.validate_and_claim_token(
             db, qr_token, user, next_event.value
         )
@@ -127,7 +162,7 @@ class AttendanceService:
             db.rollback()
             return None, error_msg
 
-        # Record attendance event
+        # Record attendance event with physical presence metadata
         new_record = AttendanceRecord(
             user_id=user.id,
             organization_id=user.organization_id,
@@ -136,6 +171,10 @@ class AttendanceService:
             scanned_at=now,
             source_qr_nonce=nonce,
             is_manually_corrected=False,
+            verified_distance_meters=round(distance, 1) if distance is not None else None,
+            reported_accuracy_meters=round(accuracy, 1),
+            client_ip=client_ip,
+            verification_method="QR_GPS",
         )
         db.add(new_record)
 
@@ -153,6 +192,9 @@ class AttendanceService:
             scanned_at=new_record.scanned_at,
             scanned_at_ist=format_kolkata_time(new_record.scanned_at),
             is_manually_corrected=new_record.is_manually_corrected,
+            verified_distance_meters=new_record.verified_distance_meters,
+            reported_accuracy_meters=new_record.reported_accuracy_meters,
+            verification_method=new_record.verification_method,
         )
 
         return event_schema, None
@@ -170,6 +212,7 @@ class AttendanceService:
         """
         Allows an Admin to manually add an attendance event with mandatory reason.
         Enforces composite uniqueness and records an audit log.
+        Marks verification_method as MANUAL_ADMIN.
         """
         target_user = db.query(User).filter(User.id == target_user_id).first()
         if not target_user:
@@ -195,6 +238,10 @@ class AttendanceService:
             event_date=event_date,
             scanned_at=scanned_at,
             is_manually_corrected=True,
+            verified_distance_meters=None,
+            reported_accuracy_meters=None,
+            client_ip=None,
+            verification_method="MANUAL_ADMIN",
         )
         db.add(new_record)
         db.flush()
@@ -210,6 +257,7 @@ class AttendanceService:
                 "event_type": new_record.event_type,
                 "event_date": str(new_record.event_date),
                 "scanned_at": new_record.scanned_at.isoformat(),
+                "verification_method": "MANUAL_ADMIN",
             },
         )
         db.add(audit_log)
@@ -240,6 +288,7 @@ class AttendanceService:
             "event_date": str(record.event_date),
             "scanned_at": record.scanned_at.isoformat(),
             "is_manually_corrected": record.is_manually_corrected,
+            "verification_method": record.verification_method,
         }
 
         if new_event_type:
@@ -269,6 +318,7 @@ class AttendanceService:
             "event_date": str(record.event_date),
             "scanned_at": record.scanned_at.isoformat(),
             "is_manually_corrected": record.is_manually_corrected,
+            "verification_method": record.verification_method,
         }
 
         audit_log = AttendanceAuditLog(

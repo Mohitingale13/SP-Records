@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.v1.deps import get_current_user
@@ -12,6 +12,7 @@ from app.schemas.attendance import (
     AttendanceStatusSummary,
 )
 from app.services.attendance_service import AttendanceService
+from app.services.location_service import LocationService
 from app.core.timezone import format_kolkata_time
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -29,17 +30,29 @@ def get_today_status(
     return AttendanceService.get_daily_status(db, current_user)
 
 
-@router.post("/scan", response_model=AttendanceEventSchema, summary="Submit a scanned rotating QR code")
+@router.post("/scan", response_model=AttendanceEventSchema, summary="Submit a scanned rotating QR code with GPS geofencing")
 def submit_qr_scan(
     payload: AttendanceScanRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Validates the rotating QR token and automatically triggers the next attendance event
-    (OFFICE_IN, LUNCH_BREAK_OUT, LUNCH_BREAK_IN, or OFFICE_OUT).
+    Validates rotating QR token and physical GPS presence within Shivam Patsanstha office geofence.
+    Automatically triggers the next attendance event in order.
     """
-    event, err = AttendanceService.process_qr_scan(db, current_user, payload.qr_token)
+    client_ip = LocationService.extract_client_ip(request)
+
+    event, err = AttendanceService.process_qr_scan(
+        db=db,
+        user=current_user,
+        qr_token=payload.qr_token,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        accuracy=payload.accuracy,
+        location_timestamp=payload.location_timestamp,
+        client_ip=client_ip,
+    )
     if err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
@@ -71,7 +84,9 @@ def get_own_history(
             scanned_at=r.scanned_at,
             scanned_at_ist=format_kolkata_time(r.scanned_at),
             is_manually_corrected=r.is_manually_corrected,
+            verified_distance_meters=r.verified_distance_meters,
+            reported_accuracy_meters=r.reported_accuracy_meters,
+            verification_method=r.verification_method,
         )
         for r in records
     ]
-

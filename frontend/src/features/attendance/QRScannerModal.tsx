@@ -5,8 +5,8 @@ import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { attendanceAPI } from "../../services/api";
-import { X, AlertCircle, CheckCircle2, QrCode } from "lucide-react";
-import type { AttendanceEvent } from "../../types";
+import { X, AlertCircle, QrCode, MapPin, ShieldCheck, Loader2 } from "lucide-react";
+import type { AttendanceEvent, ScanLocationPayload } from "../../types";
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -22,15 +22,30 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [stepMessage, setStepMessage] = useState<string>("");
   const [manualToken, setManualToken] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const qrRegionId = "sp-qr-reader";
 
+  const restartScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (text) => handleScannedToken(text),
+          () => {}
+        );
+      } catch {}
+    }
+  };
+
   const handleScannedToken = async (token: string) => {
     if (isProcessing) return;
     setIsProcessing(true);
     setError(null);
+    setStepMessage(t.locationAcquiring);
 
     // Stop camera immediately to prevent multiple scans
     if (scannerRef.current && scannerRef.current.isScanning) {
@@ -39,33 +54,77 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       } catch {}
     }
 
-    try {
-      const event = await attendanceAPI.scan(token.trim());
-      // Celebrate with confetti
-      confetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ["#00C7C7", "#36BFCB", "#B8F2EC", "#ffffff"],
-      });
-      onSuccess(event);
-      onClose();
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || "Scan failed. Please try again.";
-      setError(msg);
+    // Step 1: Verify browser geolocation support
+    if (!navigator.geolocation) {
+      setError(t.locationNotSupported);
       setIsProcessing(false);
-      // Restart scanner if possible
-      if (scannerRef.current) {
-        try {
-          await scannerRef.current.start(
-            { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (text) => handleScannedToken(text),
-            () => {}
-          );
-        } catch {}
-      }
+      restartScanner();
+      return;
     }
+
+    // Step 2: Request High Accuracy GPS Position
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const location_timestamp = new Date(pos.timestamp).toISOString();
+
+        // Check reported accuracy threshold (100m maximum acceptable)
+        if (accuracy > 100) {
+          setError(
+            `${t.locationAccuracyWarning} (±${Math.round(accuracy)}m > 100m)`
+          );
+          setIsProcessing(false);
+          restartScanner();
+          return;
+        }
+
+        setStepMessage(t.locationVerifying);
+
+        try {
+          const payload: ScanLocationPayload = {
+            qr_token: token.trim(),
+            latitude,
+            longitude,
+            accuracy,
+            location_timestamp,
+          };
+
+          const event = await attendanceAPI.scan(payload);
+
+          // Celebrate with confetti
+          confetti({
+            particleCount: 80,
+            spread: 60,
+            origin: { y: 0.6 },
+            colors: ["#00C7C7", "#36BFCB", "#B8F2EC", "#ffffff"],
+          });
+          onSuccess(event);
+          onClose();
+        } catch (err: any) {
+          const msg =
+            err.response?.data?.detail || "Scan failed. Please verify you are at Shivam Patsanstha office and retry.";
+          setError(msg);
+          setIsProcessing(false);
+          restartScanner();
+        }
+      },
+      (geoErr) => {
+        let errMsg = t.locationTimeout;
+        if (geoErr.code === geoErr.PERMISSION_DENIED) {
+          errMsg = t.locationPermissionDenied;
+        } else if (geoErr.code === geoErr.POSITION_UNAVAILABLE) {
+          errMsg = "GPS position unavailable. Please ensure location services are enabled on your device.";
+        }
+        setError(errMsg);
+        setIsProcessing(false);
+        restartScanner();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      }
+    );
   };
 
   useEffect(() => {
@@ -74,6 +133,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     let isMounted = true;
     setError(null);
     setIsProcessing(false);
+    setStepMessage("");
 
     const startScanner = async () => {
       try {
@@ -149,9 +209,22 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         <div className="relative rounded-2xl overflow-hidden border-2 border-brand-primary/40 bg-black/5 aspect-square flex items-center justify-center mb-4">
           <div id={qrRegionId} className="w-full h-full" />
           {isProcessing && (
-            <div className="absolute inset-0 bg-brand-dark/60 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2">
-              <CheckCircle2 className="w-8 h-8 text-brand-primary animate-pulse" />
-              <span className="text-xs font-semibold">Recording Attendance...</span>
+            <div className="absolute inset-0 bg-brand-dark/75 backdrop-blur-md flex flex-col items-center justify-center text-white gap-3 p-4 text-center">
+              <div className="relative">
+                <div className="w-14 h-14 rounded-full bg-brand-primary/20 flex items-center justify-center animate-pulse">
+                  <MapPin className="w-7 h-7 text-brand-primary" />
+                </div>
+                <div className="absolute -top-1 -right-1">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />
+                <span className="text-xs font-semibold">{stepMessage || t.locationVerifying}</span>
+              </div>
+              <p className="text-[10px] text-white/70 max-w-[220px]">
+                Validating physical presence within 100m geofence
+              </p>
             </div>
           )}
         </div>

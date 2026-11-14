@@ -78,7 +78,12 @@ def test_full_attendance_state_machine_cycle(client: TestClient, db_session: Ses
             # Staff scans QR
             scan_res = client.post(
                 "/api/v1/attendance/scan",
-                json={"qr_token": qr_token},
+                json={
+                    "qr_token": qr_token,
+                    "latitude": settings.OFFICE_LATITUDE,
+                    "longitude": settings.OFFICE_LONGITUDE,
+                    "accuracy": 15.0,
+                },
                 headers={"Authorization": f"Bearer {staff_token}"},
             )
             assert scan_res.status_code == 200
@@ -94,7 +99,12 @@ def test_full_attendance_state_machine_cycle(client: TestClient, db_session: Ses
         extra_qr = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"}).json()["token"]
         fail_res = client.post(
             "/api/v1/attendance/scan",
-            json={"qr_token": extra_qr},
+            json={
+                "qr_token": extra_qr,
+                "latitude": settings.OFFICE_LATITUDE,
+                "longitude": settings.OFFICE_LONGITUDE,
+                "accuracy": 15.0,
+            },
             headers={"Authorization": f"Bearer {staff_token}"},
         )
         assert fail_res.status_code == 400

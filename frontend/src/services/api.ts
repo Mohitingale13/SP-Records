@@ -7,6 +7,8 @@ import type {
   DailyMonitorResponse,
   AuditLog,
   RoleName,
+  OfficeLocationConfig,
+  ScanLocationPayload,
 } from "../types";
 
 const API_BASE_URL =
@@ -97,8 +99,8 @@ export const attendanceAPI = {
     return res.data;
   },
 
-  scan: async (qrToken: string): Promise<AttendanceEvent> => {
-    const res = await apiClient.post<AttendanceEvent>("/attendance/scan", { qr_token: qrToken });
+  scan: async (payload: ScanLocationPayload): Promise<AttendanceEvent> => {
+    const res = await apiClient.post<AttendanceEvent>("/attendance/scan", payload);
     return res.data;
   },
 
@@ -176,6 +178,21 @@ export const adminAPI = {
       confirm_pin: confirmPin,
       reason,
     });
+    return res.data;
+  },
+
+  getOfficeLocation: async (): Promise<OfficeLocationConfig> => {
+    const res = await apiClient.get<OfficeLocationConfig>("/admin/office-location");
+    return res.data;
+  },
+
+  updateOfficeLocation: async (data: {
+    office_latitude: number;
+    office_longitude: number;
+    geofence_radius_meters: number;
+    reason: string;
+  }): Promise<OfficeLocationConfig> => {
+    const res = await apiClient.patch<OfficeLocationConfig>("/admin/office-location", data);
     return res.data;
   },
 };

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, date
 from typing import List, Optional, Any
 from sqlalchemy import (
-    String, Boolean, DateTime, Date, ForeignKey, Uuid,
+    String, Boolean, DateTime, Date, ForeignKey, Uuid, Float,
     UniqueConstraint, Index
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +30,13 @@ class AttendanceRecord(Base):
     scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     source_qr_nonce: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_manually_corrected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Physical Presence Verification Metadata
+    verified_distance_meters: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    reported_accuracy_meters: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    client_ip: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    verification_method: Mapped[str] = mapped_column(String(30), default="QR_GPS", nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 

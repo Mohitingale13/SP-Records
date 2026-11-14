@@ -48,6 +48,7 @@ export const AdminDashboard: React.FC = () => {
   const { isSuperAdmin } = useAuth();
   const { t, language } = useLanguage();
   const isMarathi = language === "mr";
+  const formatPhone = (phone?: string) => (phone || "").replace(/^\+91/, "");
 
   const [monitorData, setMonitorData] = useState<DailyMonitorResponse | null>(null);
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -899,7 +900,7 @@ export const AdminDashboard: React.FC = () => {
                     {item.user.full_name}
                   </h4>
                   <span className="text-[11px] text-brand-muted font-medium">
-                    {item.user.phone_number}
+                    {formatPhone(item.user.phone_number)}
                   </span>
                 </div>
                 <StatusBadge status={item.status} size="sm" />
@@ -1019,7 +1020,7 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-brand-muted">{staff.phone_number}</span>
+                      <span className="text-[10px] text-brand-muted">{formatPhone(staff.phone_number)}</span>
                     </div>
 
                     {!isSuper && (
@@ -1228,8 +1229,8 @@ export const AdminDashboard: React.FC = () => {
             </h3>
             <p className="text-xs text-brand-muted mb-4">
               {t.confirmRoleChange}:{" "}
-              <span className="font-bold text-brand-dark">{roleActionStaff.full_name}</span> (+91{" "}
-              {roleActionStaff.phone_number})
+              <span className="font-bold text-brand-dark">{roleActionStaff.full_name}</span> (
+              {formatPhone(roleActionStaff.phone_number)})
             </p>
 
             <div className="flex gap-2 pt-2">
@@ -1452,7 +1453,7 @@ export const AdminDashboard: React.FC = () => {
                   {t.employeeHistory}
                 </h3>
                 <p className="text-xs text-brand-muted">
-                  {historyStaff.user.full_name} ({historyStaff.user.phone_number})
+                  {historyStaff.user.full_name} ({formatPhone(historyStaff.user.phone_number)})
                 </p>
               </div>
               <button
@@ -1626,7 +1627,7 @@ export const AdminDashboard: React.FC = () => {
               <span>{t.resetPinTitle}</span>
             </h3>
             <p className="text-xs text-brand-muted mb-4">
-              Staff: <span className="font-bold text-brand-dark">{resetPinStaff.full_name}</span> ({resetPinStaff.phone_number})
+              Staff: <span className="font-bold text-brand-dark">{resetPinStaff.full_name}</span> ({formatPhone(resetPinStaff.phone_number)})
             </p>
 
             {resetPinError && (

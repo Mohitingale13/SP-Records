@@ -183,20 +183,17 @@ export const LoginScreen: React.FC = () => {
                 <Phone className="w-3.5 h-3.5 text-brand-muted" />
                 <span>{t.enterPhone}</span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-3 text-xs font-bold text-brand-muted">
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  maxLength={10}
-                  placeholder="98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  className="glass-input pl-12 text-sm font-medium tracking-wide"
-                  required
-                />
-              </div>
+              <input
+                type="tel"
+                maxLength={10}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder={language === "mr" ? "१० अंकी मोबाईल नंबर (उदा. 9876543210)" : "10-digit mobile number (e.g. 9876543210)"}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                className="glass-input text-sm font-medium tracking-wide"
+                required
+              />
             </div>
 
             <div>
@@ -267,20 +264,17 @@ export const LoginScreen: React.FC = () => {
                 <Phone className="w-3.5 h-3.5 text-brand-muted" />
                 <span>{t.enterPhone}</span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-3 text-xs font-bold text-brand-muted">
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  maxLength={10}
-                  placeholder="98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  className="glass-input pl-12 text-sm font-medium tracking-wide"
-                  required
-                />
-              </div>
+              <input
+                type="tel"
+                maxLength={10}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder={language === "mr" ? "१० अंकी मोबाईल नंबर (उदा. 9876543210)" : "10-digit mobile number (e.g. 9876543210)"}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                className="glass-input text-sm font-medium tracking-wide"
+                required
+              />
             </div>
 
             <div>

@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import timedelta
 from typing import Optional, Tuple
@@ -61,8 +62,14 @@ class AuthService:
         AuthService.ensure_roles_seeded(db)
         org = AuthService.get_or_create_organization(db)
 
-        # Check for duplicate phone number
-        existing_user = db.query(User).filter(User.phone_number == phone_number).first()
+        # Check for duplicate phone number (supports both 10-digit and +91 formats)
+        digits_only = re.sub(r"\D", "", phone_number or "")
+        ten_digit = digits_only[-10:] if len(digits_only) >= 10 else digits_only
+        existing_user = db.query(User).filter(
+            (User.phone_number == phone_number)
+            | (User.phone_number == f"+91{ten_digit}")
+            | (User.phone_number == ten_digit)
+        ).first()
         if existing_user:
             return None, "A staff member is already registered with this mobile number. Please log in instead."
 
@@ -108,7 +115,13 @@ class AuthService:
         AuthService.ensure_roles_seeded(db)
         org = AuthService.get_or_create_organization(db)
 
-        user = db.query(User).filter(User.phone_number == phone_number).first()
+        digits_only = re.sub(r"\D", "", phone_number or "")
+        ten_digit = digits_only[-10:] if len(digits_only) >= 10 else digits_only
+        user = db.query(User).filter(
+            (User.phone_number == phone_number)
+            | (User.phone_number == f"+91{ten_digit}")
+            | (User.phone_number == ten_digit)
+        ).first()
         if not user:
             # Generic error to prevent phone enumeration
             return None, "Invalid mobile number or PIN."
@@ -213,7 +226,13 @@ class AuthService:
 
         pin_to_use = pin or "123456"
 
-        user = db.query(User).filter(User.phone_number == phone_number).first()
+        digits_only = re.sub(r"\D", "", phone_number or "")
+        ten_digit = digits_only[-10:] if len(digits_only) >= 10 else digits_only
+        user = db.query(User).filter(
+            (User.phone_number == phone_number)
+            | (User.phone_number == f"+91{ten_digit}")
+            | (User.phone_number == ten_digit)
+        ).first()
         if user:
             user.role_id = super_admin_role.id
             user.full_name = full_name

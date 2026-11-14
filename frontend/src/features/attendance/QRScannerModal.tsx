@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import confetti from "canvas-confetti";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -217,13 +216,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               locationTimestamp: location_timestamp,
             });
 
-            confetti({
-              particleCount: 80,
-              spread: 60,
-              origin: { y: 0.6 },
-              colors: ["#00C7C7", "#36BFCB", "#B8F2EC", "#10B981"],
-            });
-
             const optimisticEvent: AttendanceEvent = {
               id: offlineRec.id,
               event_type: offlineRec.event_type,
@@ -276,13 +268,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
           const event = await attendanceAPI.scan(payload);
 
-          confetti({
-            particleCount: 90,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ["#10B981", "#34D399", "#00C7C7", "#ffffff"],
-          });
-
           setRecordedEvent(event);
           setIsOfflineSaved(false);
           setScanState("SUCCESS");
@@ -307,13 +292,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 accuracy,
                 qrToken: token.trim(),
                 locationTimestamp: location_timestamp,
-              });
-
-              confetti({
-                particleCount: 80,
-                spread: 60,
-                origin: { y: 0.6 },
-                colors: ["#00C7C7", "#36BFCB", "#B8F2EC", "#10B981"],
               });
 
               const optimisticEvent: AttendanceEvent = {
@@ -456,10 +434,10 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         {/* ============================================================== */}
         {scanState === "SUCCESS" && recordedEvent && (
           <div className="text-center py-2 animate-fadeIn">
-            {/* Animated Checkmark Circle */}
+            {/* Animated Checkmark Circle with Smooth Pen-Marking Motion */}
             <div className="w-24 h-24 mx-auto mb-4 relative flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping opacity-40" />
-              <div className="relative w-20 h-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <div className="absolute inset-0 rounded-full bg-emerald-500/15 checkmark-ripple-ring" />
+              <div className="relative w-20 h-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/15 checkmark-badge-pop">
                 <svg className="w-14 h-14" viewBox="0 0 52 52">
                   <circle
                     className="checkmark-circle text-emerald-500 fill-none stroke-current"
@@ -473,7 +451,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M14 27l7 7 15-15"
+                    d="M14 27l7 7 16-16"
                   />
                 </svg>
               </div>
@@ -533,8 +511,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           <div className="text-center py-2 animate-fadeIn">
             {/* Animated Cross Circle */}
             <div className="w-24 h-24 mx-auto mb-4 relative flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-rose-500/20 animate-ping opacity-30" />
-              <div className="relative w-20 h-20 rounded-full bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center shadow-lg shadow-rose-500/20">
+              <div className="relative w-20 h-20 rounded-full bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center shadow-lg shadow-rose-500/15 cross-badge-pop">
                 <svg className="w-14 h-14" viewBox="0 0 52 52">
                   <circle
                     className="cross-circle text-rose-500 fill-none stroke-current"

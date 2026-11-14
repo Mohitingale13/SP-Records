@@ -14,7 +14,7 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-30 w-full glass-header px-4 py-3.5 flex items-center justify-between gap-3 shadow-xs">
+    <header className="sticky top-0 z-30 w-full glass-header px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5 flex items-center justify-between gap-3">
       <div
         className="flex items-center gap-2.5 cursor-pointer min-w-0 flex-1 mr-1"
         onClick={() => navigate("/")}

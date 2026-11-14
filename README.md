@@ -1,6 +1,6 @@
 # Shivam Patsanstha – Digital Attendance Management System
 
-A production-minded, mobile-first Progressive Web Application (PWA) engineered specifically for **Shivam Patsanstha**. The application automates staff attendance using cryptographically signed, rotating QR codes displayed on an office kiosk, auto-determining the daily four-step attendance lifecycle (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT`), backed by server-authoritative timestamps in Indian Standard Time (`Asia/Kolkata`).
+A production-minded, mobile-first Progressive Web Application (PWA) engineered specifically for **Shivam Patsanstha**. The application automates staff attendance using an official printable permanent QR code standee/poster bound to a 100-meter hardware GPS Geofence and an offline-first auto-sync engine, auto-determining the daily four-step attendance lifecycle (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT`), backed by server-authoritative timestamps in Indian Standard Time (`Asia/Kolkata`).
 
 ---
 
@@ -18,17 +18,17 @@ SP-Records/
 │   │   ├── models/             # SQLAlchemy 2.0 ORM models (PEP 563 future annotations)
 │   │   ├── schemas/            # Pydantic v2 schemas
 │   │   └── services/           # Business logic: State Machine, QR engine, Auth, PDF Reports
-│   ├── tests/                  # Pytest test suite (30 tests passing with 100% success)
+│   ├── tests/                  # Pytest test suite (39 tests passing with 100% success)
 │   ├── requirements.txt        # Python dependencies
 │   └── main.py                 # FastAPI application entrypoint
 ├── frontend/                   # React 19+ TypeScript PWA
 │   ├── public/                 # PWA icons & manifest assets
 │   ├── src/
 │   │   ├── components/         # Glassmorphic UI (GlassCard, Button, Badge, ShivamLogo, SplashScreen)
-│   │   ├── contexts/           # AuthContext, LanguageContext (EN / MR)
-│   │   ├── features/           # Domain modules (auth, attendance, qr kiosk, admin)
+│   │   ├── contexts/           # AuthContext, LanguageContext (EN / MR), OfflineContext
+│   │   ├── features/           # Domain modules (auth, attendance, admin)
 │   │   ├── i18n/               # Bilingual dictionary (English & Marathi)
-│   │   ├── services/           # Typed Axios API client with dynamic LAN IP resolution
+│   │   ├── services/           # Typed Axios API client & IndexedDB offline storage
 │   │   ├── styles/             # Tailwind design tokens & custom glassmorphism
 │   │   └── types/              # TypeScript interfaces mirroring API
 │   ├── package.json
@@ -49,7 +49,7 @@ SP-Records/
 
 ### Technology Highlights:
 - **Backend**: Python 3.10+, FastAPI, SQLAlchemy 2.x with `from __future__ import annotations`, Alembic, Pydantic v2, ReportLab with embedded Unicode Devanagari TrueType fonts, `python-jose` (HS256 JWT & HMAC QR), native `bcrypt` PIN hashing, PostgreSQL (Neon compatible) / SQLite for local development.
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS with custom glassmorphism, React Router 7, Lucide React icons, `vite-plugin-pwa` (offline service worker + web app manifest), `html5-qrcode` mobile scanner, `qrcode` kiosk canvas generator.
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS with custom glassmorphism, React Router 7, Lucide React icons, `vite-plugin-pwa` (offline service worker + web app manifest), `html5-qrcode` mobile scanner, high-res canvas generator, IndexedDB offline database.
 - **Authentication**: Zero external SMS/OTP dependency. Secure authentication via **Full Name + Phone Number + 6-digit numeric PIN** with bcrypt hashing, progressive lockouts for repeated failed attempts, and administrative PIN reset with mandatory audit reason logging.
 - **Design System**: Frosted glass cards, translucent surfaces (`rgba(255, 255, 255, 0.55)`), soft cyan/turquoise accents (`#00C7C7`, `#36BFCB`), watery blue background (`#B8F2EC` to `#D9FAF5`), dark teal typography (`#153B43`), Devanagari typography support (`Mukta` & `Noto Sans Devanagari`).
 - **Bilingual**: Seamless English and Marathi (`मराठी`) language toggle with localStorage persistence across all screens.
@@ -69,13 +69,11 @@ The backend autonomously determines and enforces the chronological event sequenc
 - **Composite Uniqueness**: Composite DB constraint `(user_id, event_date, event_type)` guarantees no duplicate scans.
 - **Server-Authoritative Clock**: All timestamps are computed in UTC and formatted for display in `Asia/Kolkata` (`UTC+05:30`).
 
-### B. Rotating Ephemeral QR Code Security & Kiosk
-- Reception kiosk generates an HMAC-SHA256 signed rotating token every 20–25 seconds.
-- Tokens include a unique UUID nonce (`jti`), organization identifier, issuance time, and absolute expiration.
-- Prevents remote proxy attendance (photographing the QR to send to absent colleagues).
-- **Multi-user concurrency**: Multiple employees standing at the counter can scan the same active rotating QR.
-- **Single-use per employee**: A staff member cannot redeem the same QR nonce twice.
-- **Live IST Clock**: Built-in Indian Standard Time digital clock updating every second on the reception kiosk screen with full-screen capability.
+### B. Official Printable Office QR Poster & 100m GPS Geofence Security
+- **No Kiosk Display Screens Required**: Specially designed for rural cooperative branches. Eliminates the cost, power outages, and maintenance issues of dedicated tablet/kiosk displays.
+- **Printable High-Res Poster**: Super Admin & Admin can download a high-resolution 1500×1500px PNG or an official vector-sharp A4 PDF poster directly from the Admin Panel to print, frame, and paste on the branch counter or entrance wall.
+- **Tamper-Proof Geofencing Anchor**: Even though the printed QR code is static, it cannot be spoofed remotely. The server evaluates the employee's phone GPS coordinates via the Haversine formula against registered office coordinates (`18.1361880, 74.5104810`). An employee attempting to scan a photo of the QR from home is immediately blocked by the 100-meter radius boundary check.
+- **Offline-First Storage & Auto-Sync**: Smartphones retain satellite GPS (GNSS) positioning even without cellular reception or Wi-Fi. In areas with power cuts or spotty 2G/3G signal, attendance records are stored locally in IndexedDB and synchronized automatically in chronological batches (`POST /api/v1/attendance/sync-offline`) when connectivity restores.
 
 ### C. Physical Presence Verification & Server-Side GPS Geofencing (Phase 2.3)
 - **Zero Third-Party Dependency**: Uses browser native HTML5 Geolocation API (`enableHighAccuracy: true`). Zero paid Google Maps or external tracking subscriptions.
@@ -141,8 +139,8 @@ New-NetFirewallRule -DisplayName "Shivam Attendance FastAPI (8000)" -Direction I
 
 ### Step 5: Mobile Camera Access & HTTPS Requirements
 Mobile web browsers (iOS Safari and Android Chrome) **restrict camera access (`getUserMedia`) to Secure Contexts (`https://` or `localhost`)**.
-- When testing on a physical phone over plain `http://10.138.97.213:5173`, staff registration, PIN login, dashboards, reports, and manual token input work completely.
-- To test the **live phone camera** against the office kiosk screen:
+- When testing on a physical phone over plain `http://10.138.97.213:5173`, staff registration, PIN login, dashboards, reports, and GPS check-ins work completely.
+- To test the **live phone camera** against the printed QR poster:
   - **Option A (Cloudflare Tunnel - Recommended & Free)**:
     ```bash
     npx cloudflared tunnel --url http://localhost:5173
@@ -152,8 +150,8 @@ Mobile web browsers (iOS Safari and Android Chrome) **restrict camera access (`g
     ```bash
     ngrok http 5173
     ```
-  - **Option C (Built-in Manual Token Fallback)**:
-    Click "Enter Token Manually" in the scanner modal on your phone to paste any active rotating token generated on the kiosk screen.
+  - **Option C (Direct Physical GPS Check-In / Offline Fallback)**:
+    Tap "Physical GPS Check-In (No Screen Needed)" directly in the scanner modal on your phone to register attendance with verified hardware GPS location.
 
 ---
 
@@ -167,28 +165,15 @@ $env:PYTHONPATH="."
 .\venv\Scripts\pytest.exe tests -v
 ```
 
-### Test Coverage Summary (21 Tests Passing):
-- `test_health_check`: Root service health check.
-- `test_register_and_login_new_staff`: Full Name + Phone + 6-digit PIN onboarding and login.
-- `test_duplicate_phone_number_rejection`: Immediate conflict rejection for existing phone.
-- `test_invalid_pin_and_rate_limiting`: Failed attempt counting and progressive account lockout.
-- `test_admin_pin_reset`: Admin PIN reset with mandatory written justification and audit logging.
-- `test_super_admin_bootstrap`: Provisioning Super Admin with PIN and security token.
-- `test_get_me_endpoint`: JWT identity resolution.
-- `test_full_attendance_state_machine_cycle`: Monotonic progression (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT` → completion rejection).
-- `test_qr_replay_attack_prevention`: Per-user nonce redemption check.
-- `test_multi_user_shared_qr_scan`: Multiple colleagues sharing the same active rotating QR.
-- `test_tampered_qr_signature_rejection`: HMAC signature validation.
-- `test_expired_qr_rejection`: Token expiration check.
-- `test_admin_manual_addition_with_audit_log`: Manual injection with mandatory justification.
-- `test_admin_daily_monitor`: Real-time presence aggregation.
-- `test_admin_correction_and_staff_history`: Admin record correction with immutable audit trail.
-- `test_weekly_pdf_report_english`: ReportLab English weekly PDF generation.
-- `test_weekly_pdf_report_marathi`: ReportLab Marathi Devanagari Unicode PDF generation.
-- `test_monthly_pdf_report`: ReportLab monthly PDF generation.
-- `test_staff_cannot_download_reports`: Security verification that staff receives 403 on report endpoints.
-- `test_super_admin_role_assignment_and_revocation`: Promotion and revocation of Admin role by Super Admin.
-- `test_ordinary_admin_cannot_alter_roles`: Ordinary Admin cannot elevate/revoke roles (403 Forbidden).
+### Test Coverage Summary (39 Tests Passing):
+- **Admin & Audit Trails (`test_admin_audit.py`)**: Manual attendance addition, corrections with immutable audit log, and daily monitor verification.
+- **Attendance State Machine (`test_attendance_state_machine.py`)**: 4-step sequence (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT` → terminal completion).
+- **Authentication & RBAC (`test_auth.py`)**: PIN hashing, login lockouts, admin PIN reset with justification, Super Admin bootstrap, JWT resolution.
+- **Geofence Security (`test_geofence_security.py`)**: Haversine distance calculations, 100m geofence enforcement, accuracy thresholds, location timestamp freshness, Super Admin location calibration.
+- **Offline Sync Engine (`test_offline_sync.py`)**: Local IndexedDB sync ingestion, chronological replay, outside-geofence rejection, poor accuracy rejection, idempotent deduplication.
+- **QR Security (`test_qr_security.py`)**: Multi-user shared office QR scans, tampered signature rejections, cross-organization code rejections, debounce protection.
+- **PDF Reports & Permissions (`test_reports_and_roles.py`)**: ReportLab English & Marathi Devanagari reports, monthly summaries, RBAC role guard enforcement.
+- **Static Office QR Poster (`test_static_qr.py`)**: Static QR configuration endpoints, 100m geofence validation, vector A4 PDF poster generation.
 
 Frontend test suite (`vitest`):
 ```powershell

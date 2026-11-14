@@ -15,9 +15,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days for persistent staff mobile session
 
-    # QR Code Lifecycle
-    QR_TOKEN_EXPIRE_SECONDS: int = 25
-    QR_CLOCK_TOLERANCE_SECONDS: int = 5
+    # Scan Debounce & Rapid Protection
     SCAN_MIN_INTERVAL_SECONDS: int = 10  # Minimum delay between scans for debounce / rapid protection
 
     # Database

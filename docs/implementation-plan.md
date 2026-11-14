@@ -38,7 +38,7 @@ The objective of Phase 1 is to construct an airtight, tested, and maintainable f
 
 ## Phase 2: Full UI Implementation, Camera Hardware & Production Polish
 - Staff PWA Screens: Onboarding, Scanner with live camera feed, Attendance History with calendar view.
-- Office Reception Kiosk: Rotating QR screen with countdown timer and real-time refresh.
+- Office QR Poster & Standee: Printable high-resolution PNG & vector A4 PDF poster with 100m GPS geofencing & offline auto-sync.
 - Admin Suite: Real-time presence monitor, Manual correction dialog with reason validation, Employee management, Super Admin role assignment.
 - Report Generation: Weekly & Monthly PDF export with Marathi font rendering.
 - Deployment Pipelines: Render (Backend), Vercel (Frontend), Neon (PostgreSQL).

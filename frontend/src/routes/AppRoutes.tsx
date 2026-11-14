@@ -6,7 +6,6 @@ import { LoginScreen } from "../features/auth/LoginScreen";
 import { StaffDashboard } from "../features/attendance/StaffDashboard";
 import { AttendanceHistoryScreen } from "../features/attendance/AttendanceHistoryScreen";
 import { AdminDashboard } from "../features/admin/AdminDashboard";
-import { QRKioskScreen } from "../features/qr/QRKioskScreen";
 import { SplashScreen } from "../components/common/SplashScreen";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({
@@ -102,17 +101,6 @@ export const AppRoutes: React.FC = () => {
             <ProtectedRoute adminOnly>
               <MobileLayout>
                 <AdminDashboard />
-              </MobileLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/kiosk"
-          element={
-            <ProtectedRoute adminOnly>
-              <MobileLayout showNav={false}>
-                <QRKioskScreen />
               </MobileLayout>
             </ProtectedRoute>
           }

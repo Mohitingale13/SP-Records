@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.v1.deps import require_admin, require_super_admin
 from app.models.user import User
-from app.models.role import RoleName
+from app.models.role import Role, RoleName
 from app.models.organization import Organization
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AttendanceAuditLog
@@ -36,13 +36,16 @@ def list_staff(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    users = (
+    query = (
         db.query(User)
+        .join(Role, User.role_id == Role.id)
         .filter(User.organization_id == current_admin.organization_id)
-        .order_by(User.full_name.asc())
-        .all()
     )
-    return users
+    # Branch Admins must never see Super Admin
+    if current_admin.role.name != RoleName.SUPER_ADMIN.value:
+        query = query.filter(Role.name != RoleName.SUPER_ADMIN.value)
+
+    return query.order_by(User.full_name.asc()).all()
 
 
 @router.get("/daily-monitor", summary="View live real-time attendance matrix for all staff")
@@ -54,15 +57,18 @@ def get_daily_monitor(
     """
     Returns the attendance overview for all staff on target_date,
     categorizing present, on break, completed, and not started.
+    Excludes Super Admin since Super Admin personal attendance is exempt.
     """
     if target_date is None:
         target_date = get_current_kolkata_date()
 
     staff_members = (
         db.query(User)
+        .join(Role, User.role_id == Role.id)
         .filter(
             User.organization_id == current_admin.organization_id,
             User.is_active == True,
+            Role.name != RoleName.SUPER_ADMIN.value,
         )
         .order_by(User.full_name.asc())
         .all()

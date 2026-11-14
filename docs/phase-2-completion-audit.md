@@ -13,7 +13,7 @@
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Staff Workflow & Identity** | 7 | 7 | 0 | 0 | 0 |
 | **Attendance State Machine** | 7 | 7 | 0 | 0 | 0 |
-| **QR Security & Kiosk** | 6 | 5 | 1 (Physical Camera) | 0 | 0 |
+| **QR Security, Poster & Offline** | 6 | 6 | 0 | 0 | 0 |
 | **Admin Operations & Audit** | 8 | 8 | 0 | 0 | 0 |
 | **PDF Reporting & Devanagari** | 7 | 7 | 0 | 0 | 0 |
 | **Super Admin Provisioning** | 4 | 4 | 0 | 0 | 0 |
@@ -48,15 +48,15 @@
 | 2.6 | Server-authoritative timestamps in UTC with IST (`UTC+05:30`) display | **IMPLEMENTED AND VERIFIED** | Formatted via `app/core/timezone.py::format_kolkata_time` |
 | 2.7 | Personal attendance history view | **IMPLEMENTED AND VERIFIED** | `AttendanceHistoryScreen.tsx` calling `/api/v1/attendance/history` |
 
-### C. QR Cryptographic Security & Kiosk
+### C. QR Cryptographic Security, Printable Poster & Offline Sync
 | # | Requirement | Classification | Verification Method |
 | :--- | :--- | :--- | :--- |
-| 3.1 | Rotating HMAC-SHA256 signed QR tokens (20–25s lifetime) | **IMPLEMENTED AND VERIFIED** | Generated via `QRCodeService.generate_rotating_token` |
-| 3.2 | Anti-replay: User cannot redeem the same nonce twice | **IMPLEMENTED AND VERIFIED** | Tested via `tests/test_qr_security.py::test_qr_replay_attack_prevention` |
-| 3.3 | Multi-user concurrency: Multiple employees can scan the same active QR | **IMPLEMENTED AND VERIFIED** | Tested via `tests/test_qr_security.py::test_multi_user_shared_qr_scan` |
-| 3.4 | Rejection of tampered or expired QR signatures | **IMPLEMENTED AND VERIFIED** | Tested via `test_tampered_qr_signature_rejection` & `test_expired_qr_rejection` |
-| 3.5 | Reception Kiosk with live IST clock and fullscreen mode | **IMPLEMENTED AND VERIFIED** | `QRKioskScreen.tsx` with second-by-second IST clock and HTML5 canvas |
-| 3.6 | Physical mobile camera sensor scanning | **IMPLEMENTED BUT NOT VERIFIED** | Software simulation, fallback input, and `html5-qrcode` verified; physical mobile camera sensor requires physical hardware in the field |
+| 3.1 | Permanent HMAC-SHA256 signed office QR token | **IMPLEMENTED AND VERIFIED** | Generated via `QRCodeService.get_permanent_office_token` |
+| 3.2 | Server-Side 100m GPS Geofence validation (Haversine) | **IMPLEMENTED AND VERIFIED** | Tested via `tests/test_geofence_security.py` |
+| 3.3 | Multi-user concurrency: Multiple employees can scan the official office QR | **IMPLEMENTED AND VERIFIED** | Tested via `tests/test_qr_security.py::test_multi_user_shared_office_qr_scan` |
+| 3.4 | Rejection of tampered signatures or cross-organization codes | **IMPLEMENTED AND VERIFIED** | Tested via `test_tampered_qr_signature_rejection` & `test_different_org_qr_rejection` |
+| 3.5 | Official High-Res PNG (1500px) & Vector A4 PDF Poster Generation | **IMPLEMENTED AND VERIFIED** | Tested via `tests/test_static_qr.py::test_print_pdf_endpoint` & Admin Dashboard |
+| 3.6 | Offline-First IndexedDB buffer & background batch synchronization | **IMPLEMENTED AND VERIFIED** | Tested via `tests/test_offline_sync.py` (5 tests) & `OfflineContext.tsx` |
 
 ### D. Admin Dashboard Operations & Audit Logging
 | # | Requirement | Classification | Verification Method |

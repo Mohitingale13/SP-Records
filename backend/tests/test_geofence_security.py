@@ -36,13 +36,8 @@ def test_haversine_distance_calculation():
 def test_geofence_exact_office_coordinates_accepted(client: TestClient):
     """Exact office coordinates (distance ~0m, high accuracy) must be accepted."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010001", name="Geofence Test User 1")
-    admin_token = get_authenticated_admin(client, phone="+919800010002", name="Admin Geofence 1")
     headers = {"Authorization": f"Bearer {staff_token}"}
-
-    # Obtain kiosk QR token
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    assert kiosk_res.status_code == 200
-    qr_token = kiosk_res.json()["token"]
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     # Submit scan with exact office coordinates
     scan_res = client.post(
@@ -68,11 +63,8 @@ def test_geofence_exact_office_coordinates_accepted(client: TestClient):
 def test_geofence_acceptable_offsets_30m_and_80m(client: TestClient):
     """Points within the 100m geofence radius (e.g. 30m, 80m) must be accepted."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010003", name="Geofence Test User 2")
-    admin_token = get_authenticated_admin(client, phone="+919800010004", name="Admin Geofence 2")
     headers = {"Authorization": f"Bearer {staff_token}"}
-
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    qr_token = kiosk_res.json()["token"]
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     # 30m away: 18.1363788, 74.5106817
     scan_res = client.post(
@@ -95,12 +87,10 @@ def test_geofence_acceptable_offsets_30m_and_80m(client: TestClient):
 def test_geofence_outside_radius_rejections(client: TestClient):
     """Locations outside 100m geofence (150m, 1km, 5km) must be rejected with 400."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010005", name="Geofence Test User 3")
-    admin_token = get_authenticated_admin(client, phone="+919800010006", name="Admin Geofence 3")
     headers = {"Authorization": f"Bearer {staff_token}"}
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     # 1. 150m away (18.1371419, 74.5114847)
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    qr_token = kiosk_res.json()["token"]
     res_150m = client.post(
         "/api/v1/attendance/scan",
         headers=headers,
@@ -149,11 +139,8 @@ def test_geofence_outside_radius_rejections(client: TestClient):
 def test_poor_gps_accuracy_rejected(client: TestClient):
     """GPS accuracy worse than 100m must be rejected."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010007", name="Geofence Test User 4")
-    admin_token = get_authenticated_admin(client, phone="+919800010008", name="Admin Geofence 4")
     headers = {"Authorization": f"Bearer {staff_token}"}
-
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    qr_token = kiosk_res.json()["token"]
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     # Accuracy 150m at exact office location
     res = client.post(
@@ -174,11 +161,8 @@ def test_poor_gps_accuracy_rejected(client: TestClient):
 def test_stale_location_timestamp_rejected(client: TestClient):
     """Location timestamps older than 120 seconds must be rejected."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010009", name="Geofence Test User 5")
-    admin_token = get_authenticated_admin(client, phone="+919800010010", name="Admin Geofence 5")
     headers = {"Authorization": f"Bearer {staff_token}"}
-
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    qr_token = kiosk_res.json()["token"]
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     # 180 seconds old
     stale_time = utc_now() - timedelta(seconds=180)
@@ -200,11 +184,8 @@ def test_stale_location_timestamp_rejected(client: TestClient):
 def test_invalid_coordinates_rejected(client: TestClient):
     """Out-of-range coordinates must be rejected."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010011", name="Geofence Test User 6")
-    admin_token = get_authenticated_admin(client, phone="+919800010012", name="Admin Geofence 6")
     headers = {"Authorization": f"Bearer {staff_token}"}
-
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    qr_token = kiosk_res.json()["token"]
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     # Latitude 95.0 (> 90.0)
     res = client.post(
@@ -224,11 +205,8 @@ def test_invalid_coordinates_rejected(client: TestClient):
 def test_missing_coordinates_payload_validation(client: TestClient):
     """Submissions without GPS coordinates must fail Pydantic validation (422)."""
     staff_token, _ = get_authenticated_staff(client, phone="+919800010013", name="Geofence Test User 7")
-    admin_token = get_authenticated_admin(client, phone="+919800010014", name="Admin Geofence 7")
     headers = {"Authorization": f"Bearer {staff_token}"}
-
-    kiosk_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-    qr_token = kiosk_res.json()["token"]
+    qr_token = f"SP_OFFICE_STATIC_QR:{settings.ORGANIZATION_CODE}"
 
     res = client.post(
         "/api/v1/attendance/scan",

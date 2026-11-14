@@ -206,7 +206,7 @@ Ephemeral token tracking for rotating office QR codes.
 | `id` | `UUID` | Primary Key | Token entry ID |
 | `nonce` | `VARCHAR(100)` | NOT NULL, UNIQUE, Indexed | Unique cryptographically generated nonce / jti |
 | `organization_id` | `UUID` | Foreign Key (`organizations.id`), NOT NULL | Organization scope |
-| `created_by_user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Admin kiosk user |
+| `created_by_user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Admin issuer user |
 | `issued_at` | `TIMESTAMPTZ` | NOT NULL | Token creation time |
 | `expires_at` | `TIMESTAMPTZ` | NOT NULL | Token expiration time (e.g. +30s) |
 | `is_revoked` | `BOOLEAN` | NOT NULL, DEFAULT false | Administrative revocation |

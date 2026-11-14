@@ -58,13 +58,6 @@ export interface AttendanceStatusSummary {
   is_completed: boolean;
 }
 
-export interface QRTokenResponse {
-  token: string;
-  expires_at: string;
-  remaining_seconds: number;
-  nonce: string;
-}
-
 export interface AuditLog {
   id: string;
   attendance_record_id?: string | null;
@@ -100,5 +93,44 @@ export interface DailyMonitorResponse {
     not_started: number;
   };
   staff_attendance: DailyMonitorStaffItem[];
+}
+
+export interface OfflineAttendanceRecord {
+  id: string; // unique offline correlation ID
+  event_type: AttendanceEventType;
+  qr_token?: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  scanned_at: string; // ISO string
+  location_timestamp?: string;
+  status: "PENDING" | "SYNCING" | "SYNCED" | "FAILED";
+  error?: string;
+  created_at: string;
+}
+
+export interface OfflineSyncItemPayload {
+  offline_id: string;
+  event_type: AttendanceEventType;
+  qr_token?: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  scanned_at: string;
+  location_timestamp?: string;
+}
+
+export interface OfflineSyncResultItem {
+  offline_id: string;
+  status: "SYNCED" | "ALREADY_EXISTS" | "REJECTED";
+  message: string;
+  event?: AttendanceEvent;
+}
+
+export interface OfflineSyncResponse {
+  synced_count: number;
+  already_exists_count: number;
+  failed_count: number;
+  results: OfflineSyncResultItem[];
 }
 

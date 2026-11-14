@@ -10,6 +10,8 @@ from app.schemas.attendance import (
     AttendanceScanRequest,
     AttendanceEventSchema,
     AttendanceStatusSummary,
+    OfflineSyncRequest,
+    OfflineSyncResponse,
 )
 from app.services.attendance_service import AttendanceService
 from app.services.location_service import LocationService
@@ -57,6 +59,27 @@ def submit_qr_scan(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
     return event
+
+
+@router.post("/sync-offline", response_model=OfflineSyncResponse, summary="Batch sync offline attendance events")
+def sync_offline_attendance(
+    payload: OfflineSyncRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Accepts and transactionally validates a batch of offline attendance events
+    captured while the mobile client had no internet.
+    Enforces physical presence GPS geofence, accuracy, timestamp freshness, and sequence order.
+    """
+    client_ip = LocationService.extract_client_ip(request)
+    return AttendanceService.process_offline_sync(
+        db=db,
+        user=current_user,
+        events=payload.events,
+        client_ip=client_ip,
+    )
 
 
 @router.get("/history", response_model=List[AttendanceEventSchema], summary="View personal attendance event history")

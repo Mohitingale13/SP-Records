@@ -69,13 +69,13 @@ def test_full_attendance_state_machine_cycle(client: TestClient, db_session: Ses
     ]
 
     try:
-        for recorded_type, expected_status_after, next_expected in expected_sequence:
-            # Office kiosk generates fresh rotating QR
-            qr_res = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"})
-            assert qr_res.status_code == 200
-            qr_token = qr_res.json()["token"]
+        # Permanent static office QR used by staff
+        static_res = client.get("/api/v1/qr/office-static", headers={"Authorization": f"Bearer {staff_token}"})
+        assert static_res.status_code == 200
+        qr_token = static_res.json()["token"]
 
-            # Staff scans QR
+        for recorded_type, expected_status_after, next_expected in expected_sequence:
+            # Staff scans permanent office QR
             scan_res = client.post(
                 "/api/v1/attendance/scan",
                 json={
@@ -96,11 +96,10 @@ def test_full_attendance_state_machine_cycle(client: TestClient, db_session: Ses
             assert curr_status["next_expected_event"] == next_expected
 
         # 5th scan attempt when cycle is completed should fail
-        extra_qr = client.post("/api/v1/qr/rotate", headers={"Authorization": f"Bearer {admin_token}"}).json()["token"]
         fail_res = client.post(
             "/api/v1/attendance/scan",
             json={
-                "qr_token": extra_qr,
+                "qr_token": qr_token,
                 "latitude": settings.OFFICE_LATITUDE,
                 "longitude": settings.OFFICE_LONGITUDE,
                 "accuracy": 15.0,

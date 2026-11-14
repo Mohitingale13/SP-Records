@@ -11,42 +11,49 @@ The system replaces manual paper registers with an automated, tamper-proof QR-ba
 
 ```mermaid
 flowchart TD
-    subgraph Office["Office Kiosk / Tablet"]
-        QD["Rotating QR Code Display (15-30s cycle)"]
+    subgraph Office["Branch Entrance / Counter"]
+        QD["Official Printed Static QR Standee / Poster"]
     end
 
     subgraph Staff["Staff Mobile Devices (PWA)"]
-        SM["Camera / Scanner Interface"]
+        SM["Camera Scanner / Offline GPS Trigger"]
         SD["Staff Dashboard (History & Status)"]
+        IDB[("IndexedDB Local Offline Buffer")]
     end
 
     subgraph Admin["Admin Interface"]
         AD["Live Attendance Monitor"]
         AR["Audit Logs & PDF Reports"]
+        AQ["High-Res PNG & Vector PDF Poster Download"]
     end
 
     subgraph Backend["FastAPI Backend (Render)"]
         API["REST API Router (/api/v1)"]
-        AUTH["Auth & Role Guard (JWT / OTP)"]
+        AUTH["Auth & Role Guard (JWT / PIN)"]
         ASM["Attendance State Machine"]
+        GEO["100m GPS Geofence Validator (Haversine)"]
         QRS["QR Cryptographic Engine (HMAC-SHA256)"]
+        SYNC["Offline Batch Sync Ingestion"]
     end
 
     subgraph Database["PostgreSQL (Neon)"]
         DB[(Normalized Tables & Constraints)]
     end
 
-    QD -->|Request Signed Nonce| API
-    SM -->|Submit Scanned Token| API
+    SM -.->|Offline Buffered Event| IDB
+    IDB -->|Auto-Sync on Network Return| SYNC
+    SM -->|Submit Scanned Token + GPS Fix| API
     SD <-->|Fetch Own Records| API
     AD <-->|Admin Ops & Overrides| API
     AR <-->|Generate Reports| API
+    AQ <-->|Download QR Posters| API
 
     API --> AUTH
-    AUTH --> ASM
+    AUTH --> GEO
+    GEO --> ASM
     API --> QRS
+    SYNC --> GEO
     ASM --> DB
-    QRS --> DB
 ```
 
 ---
@@ -116,10 +123,9 @@ SP-Records/
 │   │   │   └── layout/         # Header, LanguageToggle, BottomNav
 │   │   ├── contexts/           # AuthContext, LanguageContext
 │   │   ├── features/           # Domain-specific modules
-│   │   │   ├── auth/           # Welcome, Phone input, OTP verify
+│   │   │   ├── auth/           # Welcome, Phone input, PIN verify
 │   │   │   ├── attendance/     # Scanner, Today's status, History list
-│   │   │   ├── admin/          # Staff list, Live monitor, Corrections, Reports
-│   │   │   └── qr/             # Kiosk rotating QR display
+│   │   │   └── admin/          # Staff list, Live monitor, Corrections, Reports, QR Poster
 │   │   ├── hooks/              # useAuth, useTranslation, useCamera
 │   │   ├── i18n/               # en.json, mr.json, i18n helper
 │   │   ├── routes/             # AppRoutes & ProtectedRoute guards

@@ -5,7 +5,8 @@ import { StatusBadge } from "../../components/common/Badge";
 import { IOSSegmentedSwitch } from "../../components/common/IOSSegmentedSwitch";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { adminAPI, reportsAPI } from "../../services/api";
+import { adminAPI, reportsAPI, qrAPI } from "../../services/api";
+import QRCode from "qrcode";
 import type {
   DailyMonitorResponse,
   DailyMonitorStaffItem,
@@ -38,13 +39,15 @@ import {
   Eye,
   EyeOff,
   MapPin,
+  Download,
+  Printer,
+  Maximize2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 export const AdminDashboard: React.FC = () => {
   const { isSuperAdmin } = useAuth();
   const { t, language } = useLanguage();
-  const navigate = useNavigate();
+  const isMarathi = language === "mr";
 
   const [monitorData, setMonitorData] = useState<DailyMonitorResponse | null>(null);
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -76,6 +79,7 @@ export const AdminDashboard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Individual Staff Attendance History Modal State
   const [historyStaff, setHistoryStaff] = useState<DailyMonitorStaffItem | null>(null);
@@ -117,6 +121,90 @@ export const AdminDashboard: React.FC = () => {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
+
+  // Official Static Office QR State & Download
+  const [staticQrToken, setStaticQrToken] = useState<string>("");
+  const [staticQrDataUrl, setStaticQrDataUrl] = useState<string>("");
+  const [isDownloadingQrPdf, setIsDownloadingQrPdf] = useState(false);
+  const [isGeneratingPng, setIsGeneratingPng] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [staticOrgName, setStaticOrgName] = useState<string>("Shivam Patsanstha");
+
+  useEffect(() => {
+    const fetchStaticQr = async () => {
+      try {
+        const data = await qrAPI.getOfficeStatic();
+        setStaticQrToken(data.token);
+        if (data.organization_name) {
+          setStaticOrgName(data.organization_name);
+        }
+        const url = await QRCode.toDataURL(data.token, {
+          width: 400,
+          margin: 1,
+          errorCorrectionLevel: "H",
+          color: {
+            dark: "#153B43",
+            light: "#FFFFFF",
+          },
+        });
+        setStaticQrDataUrl(url);
+      } catch (err) {
+        console.warn("Failed to load static office QR:", err);
+      }
+    };
+
+    fetchStaticQr();
+  }, []);
+
+  const handleDownloadHighResPng = async () => {
+    if (!staticQrToken) return;
+    setIsGeneratingPng(true);
+    try {
+      const highResUrl = await QRCode.toDataURL(staticQrToken, {
+        width: 1500,
+        margin: 2,
+        errorCorrectionLevel: "H",
+        color: {
+          dark: "#153B43",
+          light: "#FFFFFF",
+        },
+      });
+
+      const a = document.createElement("a");
+      a.href = highResUrl;
+      a.download = "Shivam_Patsanstha_Attendance_QR_1500px.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setActionSuccess("Full-size 1500px QR image downloaded successfully!");
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err) {
+      console.error("Failed to generate full-size PNG:", err);
+    } finally {
+      setIsGeneratingPng(false);
+    }
+  };
+
+  const handleDownloadPrintablePdf = async () => {
+    setIsDownloadingQrPdf(true);
+    try {
+      const blob = await qrAPI.downloadPrintPdf();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Shivam_Patsanstha_Official_Attendance_QR.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setActionSuccess("Official printable A4 poster PDF downloaded!");
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err) {
+      console.error("Failed to download poster PDF:", err);
+    } finally {
+      setIsDownloadingQrPdf(false);
+    }
+  };
 
   const handleResetPinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,6 +337,9 @@ export const AdminDashboard: React.FC = () => {
   const filteredStaffAttendance = useMemo(() => {
     if (!monitorData?.staff_attendance) return [];
     return monitorData.staff_attendance.filter((item) => {
+      // Super Admin is exempt and should never appear in staff attendance roster
+      if (item.user.role === "SUPER_ADMIN") return false;
+
       const matchesSearch =
         item.user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.user.phone_number.includes(searchQuery);
@@ -415,7 +506,13 @@ export const AdminDashboard: React.FC = () => {
       fetchStaffList();
       fetchMonitor();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to update role.");
+      const msg = err.response?.data?.detail;
+      setActionError(
+        typeof msg === "string"
+          ? msg
+          : (language === "mr" ? "भूमिका बदलता आली नाही. कृपया पुन्हा प्रयत्न करा." : "Failed to update role. Please try again.")
+      );
+      setTimeout(() => setActionError(null), 5000);
     } finally {
       setIsUpdatingRole(false);
     }
@@ -443,15 +540,6 @@ export const AdminDashboard: React.FC = () => {
             <span className="hidden sm:inline">Audit Logs</span>
           </button>
 
-          <Button
-            variant="secondary"
-            onClick={() => navigate("/kiosk")}
-            className="!px-3 !py-1.5 text-xs font-bold"
-            icon={<QrCode className="w-4 h-4 text-brand-primary" />}
-          >
-            Kiosk
-          </Button>
-
           <button
             onClick={() => {
               fetchMonitor();
@@ -474,6 +562,22 @@ export const AdminDashboard: React.FC = () => {
           <button
             onClick={() => setActionSuccess(null)}
             className="p-1 rounded-full hover:bg-emerald-600/20 text-emerald-700 transition-colors ml-2"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-950 text-xs font-semibold flex items-center justify-between shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="p-1 rounded-full hover:bg-rose-600/20 text-rose-700 transition-colors ml-2"
             aria-label="Dismiss"
           >
             <X className="w-3.5 h-3.5" />
@@ -522,6 +626,108 @@ export const AdminDashboard: React.FC = () => {
               {monitorData?.counts.completed || 0}
             </span>
           </div>
+        </div>
+      </GlassCard>
+
+      {/* Official Office QR Poster & Counter Standee */}
+      <GlassCard className="!p-4 space-y-3.5 border-brand-primary/40 bg-gradient-to-br from-white/70 via-white/50 to-brand-primary/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-brand-primary/20 text-brand-primary flex items-center justify-center shadow-xs">
+              <QrCode className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-brand-dark uppercase tracking-wider">
+                {t.officialOfficeQrTitle}
+              </h3>
+              <p className="text-[11px] text-brand-muted font-medium">
+                {isMarathi ? "प्रिंट व लॅमिनेट करून काउंटरवर लावा" : "Print & paste on office counter/entrance"}
+              </p>
+            </div>
+          </div>
+
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-800 border border-emerald-500/30 flex items-center gap-1 shadow-xs">
+            <MapPin className="w-3 h-3 text-emerald-600" />
+            100m GPS
+          </span>
+        </div>
+
+        {/* QR Code Visual Preview Card (Clickable to showcase full screen) */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 p-3 rounded-2xl bg-white/80 border border-brand-primary/30 shadow-xs">
+          {staticQrDataUrl ? (
+            <div
+              onClick={() => setShowQrModal(true)}
+              className="p-2 rounded-xl bg-white border border-brand-primary/30 shadow-md shrink-0 cursor-pointer hover:border-brand-primary hover:shadow-lg transition-all group relative"
+              title={isMarathi ? "स्क्रीनवर मोठे पाहण्यासाठी क्लिक करा" : "Click to view full screen"}
+            >
+              <img
+                src={staticQrDataUrl}
+                alt="Official Office Attendance QR"
+                className="w-28 h-28 object-contain rounded-lg transition-transform group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-brand-dark/15 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="p-1 rounded-md bg-white/90 text-brand-dark shadow-xs">
+                  <Maximize2 className="w-3.5 h-3.5 text-brand-primary" />
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="w-28 h-28 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-muted shrink-0">
+              <RefreshCw className="w-6 h-6 animate-spin text-brand-primary" />
+            </div>
+          )}
+
+          <div className="space-y-1.5 text-center sm:text-left flex-1 min-w-0">
+            <div className="flex items-center justify-center sm:justify-start gap-1.5">
+              <h4 className="text-xs font-bold text-brand-dark">
+                {isMarathi ? "कायमस्वरूपी उपस्थिती QR" : "Official Attendance QR"}
+              </h4>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                className="text-[10px] text-brand-primary font-bold hover:underline flex items-center gap-0.5 ml-1"
+                title={isMarathi ? "मोठे पहा" : "Enlarge"}
+              >
+                <Maximize2 className="w-3 h-3" />
+                <span>{isMarathi ? "मोठे पहा" : "Show"}</span>
+              </button>
+            </div>
+            <p className="text-[11px] text-brand-muted leading-relaxed font-medium">
+              {t.officialOfficeQrDesc}
+            </p>
+            <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-md w-fit mx-auto sm:mx-0">
+              <span>✓ 100m GPS</span>
+              <span>•</span>
+              <span>✓ Offline</span>
+              <span>•</span>
+              <span className="cursor-pointer underline" onClick={() => setShowQrModal(true)}>
+                {isMarathi ? "क्लिक करून दाखवा" : "Click to Show"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons: Short, concise 1-2 words with format in brackets */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button
+            variant="primary"
+            onClick={handleDownloadHighResPng}
+            disabled={!staticQrDataUrl || isGeneratingPng}
+            className="w-full !py-2 text-xs font-bold shadow-sm flex items-center justify-center gap-1.5"
+            icon={<Download className="w-3.5 h-3.5" />}
+          >
+            {t.downloadHighResPng}
+          </Button>
+
+          <Button
+            variant="secondary"
+            onClick={handleDownloadPrintablePdf}
+            isLoading={isDownloadingQrPdf}
+            className="w-full !py-2 text-xs font-bold border-brand-primary/40 hover:bg-brand-primary/10 flex items-center justify-center gap-1.5"
+            icon={<Printer className="w-3.5 h-3.5 text-brand-primary" />}
+          >
+            {t.downloadPrintablePdf}
+          </Button>
         </div>
       </GlassCard>
 
@@ -1507,6 +1713,85 @@ export const AdminDashboard: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Full-Screen QR Showcase Modal (Phone Show / Counter Scan) */}
+      {showQrModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/70 backdrop-blur-md animate-fadeIn"
+          onClick={() => setShowQrModal(false)}
+        >
+          <GlassCard
+            className="w-full max-w-sm sm:max-w-md relative !p-6 border-white/90 shadow-2xl bg-white/95 text-center space-y-4"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute right-4 top-4 p-2 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header info */}
+            <div className="space-y-1.5 pt-1">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-800 border border-emerald-500/30 inline-flex items-center gap-1 shadow-xs">
+                <MapPin className="w-3 h-3 text-emerald-600" />
+                100m GPS Geofenced
+              </span>
+              <h3 className="text-base font-bold text-brand-dark">
+                {staticOrgName}
+              </h3>
+              <p className="text-xs text-brand-muted font-medium">
+                {isMarathi ? "उपस्थिती नोंदणीसाठी हा QR कोड स्कॅन करा" : "Scan this official QR code to log attendance"}
+              </p>
+            </div>
+
+            {/* Big Crisp QR Display */}
+            <div className="p-4 rounded-2xl bg-white border border-brand-primary/30 shadow-lg mx-auto w-fit">
+              {staticQrDataUrl ? (
+                <img
+                  src={staticQrDataUrl}
+                  alt="Official Office Attendance QR"
+                  className="w-56 h-56 sm:w-64 sm:h-64 object-contain mx-auto"
+                />
+              ) : (
+                <div className="w-56 h-56 flex items-center justify-center text-brand-muted">
+                  <RefreshCw className="w-8 h-8 animate-spin text-brand-primary" />
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-brand-muted max-w-xs mx-auto leading-tight font-medium">
+              {isMarathi
+                ? "इतर कर्मचाऱ्यांकडून स्कॅन करून घेण्यासाठी हा स्क्रीन दाखवा किंवा पोस्टर प्रिंट करा."
+                : "Display this screen for staff to scan directly, or print the official poster."}
+            </p>
+
+            {/* Action buttons inside the modal */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Button
+                variant="primary"
+                onClick={handleDownloadHighResPng}
+                disabled={!staticQrDataUrl || isGeneratingPng}
+                className="w-full !py-2.5 text-xs font-bold shadow-sm flex items-center justify-center gap-1.5"
+                icon={<Download className="w-3.5 h-3.5" />}
+              >
+                {t.downloadHighResPng}
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={handleDownloadPrintablePdf}
+                isLoading={isDownloadingQrPdf}
+                className="w-full !py-2.5 text-xs font-bold border-brand-primary/40 hover:bg-brand-primary/10 flex items-center justify-center gap-1.5"
+                icon={<Printer className="w-3.5 h-3.5 text-brand-primary" />}
+              >
+                {t.downloadPrintablePdf}
+              </Button>
+            </div>
           </GlassCard>
         </div>
       )}

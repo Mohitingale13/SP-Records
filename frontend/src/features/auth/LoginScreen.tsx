@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 
 export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
@@ -33,6 +33,39 @@ export const LoginScreen: React.FC = () => {
   const handleTabChange = (tab: "login" | "register") => {
     setActiveTab(tab);
     resetForm();
+  };
+
+  const formatAuthError = (err: any, fallbackEn: string, fallbackMr: string): string => {
+    const isMr = language === "mr";
+    if (!err.response || err.code === "ERR_NETWORK" || !navigator.onLine) {
+      return isMr
+        ? "सर्व्हरशी संपर्क होऊ शकला नाही. कृपया इंटरनेट कनेक्शन तपासा."
+        : "Unable to reach server. Please check your internet connection.";
+    }
+    const detail = String(err.response?.data?.detail || "");
+    if (/invalid mobile number or pin/i.test(detail)) {
+      return isMr
+        ? "अवैध मोबाईल क्रमांक किंवा पिन. कृपया तपासून पुन्हा प्रयत्न करा."
+        : "Invalid mobile number or PIN. Please try again.";
+    }
+    if (/already registered/i.test(detail)) {
+      return isMr
+        ? "या मोबाईल क्रमांकावर खाते आधीच अस्तित्वात आहे. कृपया लॉग इन करा."
+        : "An account with this mobile number already exists. Please log in instead.";
+    }
+    if (/temporarily locked/i.test(detail)) {
+      const match = detail.match(/(\d+)\s*minutes/);
+      const mins = match ? match[1] : "15";
+      return isMr
+        ? `वारंवार चुकीचा पिन टाकल्याने खाते तात्पुरते लॉक झाले आहे. कृपया ${mins} मिनिटांनी पुन्हा प्रयत्न करा.`
+        : `Account temporarily locked due to multiple failed attempts. Please retry in ${mins} minutes.`;
+    }
+    if (/deactivated/i.test(detail)) {
+      return isMr
+        ? "हे खाते निष्क्रिय केले आहे. कृपया कार्यालयीन प्रशासकांशी संपर्क साधा."
+        : "Account has been deactivated. Please contact your office administrator.";
+    }
+    return isMr ? fallbackMr : (typeof err.response?.data?.detail === "string" ? err.response.data.detail : fallbackEn);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,8 +93,7 @@ export const LoginScreen: React.FC = () => {
         navigate("/dashboard");
       }
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === "string" ? detail : "Invalid credentials. Please try again.");
+      setError(formatAuthError(err, "Invalid credentials. Please try again.", "अवैध मोबाईल क्रमांक किंवा पिन. कृपया पुन्हा प्रयत्न करा."));
     } finally {
       setIsLoading(false);
     }
@@ -102,8 +134,7 @@ export const LoginScreen: React.FC = () => {
         navigate("/dashboard");
       }
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === "string" ? detail : "Registration failed. Please check details.");
+      setError(formatAuthError(err, "Registration failed. Please check details and retry.", "नोंदणी अयशस्वी झाली. कृपया माहिती तपासून पुन्हा प्रयत्न करा."));
     } finally {
       setIsLoading(false);
     }

@@ -8,6 +8,7 @@ from app.core.timezone import (
     utc_now,
     get_current_kolkata_date,
     format_kolkata_time,
+    KOLKATA_TZ,
 )
 from app.models.attendance import AttendanceRecord, AttendanceEventType
 from app.models.audit import AttendanceAuditLog, AuditAction
@@ -15,6 +16,9 @@ from app.models.user import User
 from app.schemas.attendance import (
     AttendanceStatusSummary,
     AttendanceEventSchema,
+    OfflineAttendanceItem,
+    OfflineSyncResultItem,
+    OfflineSyncResponse,
 )
 from app.services.qr_service import QRCodeService
 from app.services.location_service import LocationService
@@ -218,6 +222,9 @@ class AttendanceService:
         if not target_user:
             return None, "Target staff member not found."
 
+        if target_user.role and target_user.role.name == "SUPER_ADMIN":
+            return None, "Super Administrators are exempt from personal attendance recording."
+
         # Check for existing record
         existing = (
             db.query(AttendanceRecord)
@@ -334,3 +341,164 @@ class AttendanceService:
         db.refresh(record)
 
         return record, None
+
+    @staticmethod
+    def process_offline_sync(
+        db: Session,
+        user: User,
+        events: List[OfflineAttendanceItem],
+        client_ip: Optional[str] = None,
+    ) -> OfflineSyncResponse:
+        """
+        Batch-processes offline attendance events queued while the client device had no internet:
+        1. Chronologically sorts incoming offline events by scanned_at.
+        2. Validates physical presence via Haversine distance against registered office coordinates.
+        3. Enforces GPS accuracy and location freshness relative to the scan timestamp.
+        4. Validates state machine order and deduplicates already synced events.
+        5. Persists records with verification_method='OFFLINE_GPS'.
+        """
+        sorted_events = sorted(events, key=lambda e: e.scanned_at)
+
+        office_lat, office_lon, radius = LocationService.get_office_geofence(
+            db, str(user.organization_id)
+        )
+
+        results: List[OfflineSyncResultItem] = []
+        synced_count = 0
+        already_exists_count = 0
+        failed_count = 0
+
+        for item in sorted_events:
+            # 1. Determine calendar date in IST
+            scan_time = item.scanned_at
+            if scan_time.tzinfo is None:
+                scan_time = scan_time.replace(tzinfo=KOLKATA_TZ)
+            event_date = scan_time.astimezone(KOLKATA_TZ).date()
+
+            # 2. Check if this exact event type is already recorded on this date
+            existing = (
+                db.query(AttendanceRecord)
+                .filter(
+                    AttendanceRecord.user_id == user.id,
+                    AttendanceRecord.event_date == event_date,
+                    AttendanceRecord.event_type == item.event_type.value,
+                )
+                .first()
+            )
+            if existing:
+                results.append(
+                    OfflineSyncResultItem(
+                        offline_id=item.offline_id,
+                        status="ALREADY_EXISTS",
+                        message=f"{item.event_type.value} was already recorded for {event_date}.",
+                        event=AttendanceEventSchema(
+                            id=existing.id,
+                            event_type=AttendanceEventType(existing.event_type),
+                            event_date=existing.event_date,
+                            scanned_at=existing.scanned_at,
+                            scanned_at_ist=format_kolkata_time(existing.scanned_at),
+                            is_manually_corrected=existing.is_manually_corrected,
+                            verified_distance_meters=existing.verified_distance_meters,
+                            reported_accuracy_meters=existing.reported_accuracy_meters,
+                            verification_method=existing.verification_method,
+                        ),
+                    )
+                )
+                already_exists_count += 1
+                continue
+
+            # 3. Validate GPS physical presence at the time of the scan
+            loc_valid, distance, loc_err = LocationService.validate_location(
+                latitude=item.latitude,
+                longitude=item.longitude,
+                accuracy=item.accuracy,
+                location_timestamp=item.location_timestamp,
+                office_lat=office_lat,
+                office_lon=office_lon,
+                geofence_radius=radius,
+                reference_time=scan_time,
+            )
+            if not loc_valid:
+                results.append(
+                    OfflineSyncResultItem(
+                        offline_id=item.offline_id,
+                        status="REJECTED",
+                        message=loc_err or "GPS location verification failed.",
+                    )
+                )
+                failed_count += 1
+                continue
+
+            # 4. Enforce state machine ordering
+            today_records = AttendanceService.get_today_records(db, user.id, event_date)
+            status, next_expected = AttendanceService.resolve_attendance_state(today_records)
+
+            if next_expected is not None and item.event_type != next_expected:
+                results.append(
+                    OfflineSyncResultItem(
+                        offline_id=item.offline_id,
+                        status="REJECTED",
+                        message=f"Sequence conflict: expected '{next_expected.value}', but received '{item.event_type.value}'.",
+                    )
+                )
+                failed_count += 1
+                continue
+
+            # 5. Persist the attendance record
+            record = AttendanceRecord(
+                user_id=user.id,
+                organization_id=user.organization_id,
+                event_type=item.event_type.value,
+                event_date=event_date,
+                scanned_at=scan_time,
+                source_qr_nonce=item.qr_token[:50] if item.qr_token else "OFFLINE_SYNC",
+                is_manually_corrected=False,
+                verified_distance_meters=round(distance, 1) if distance is not None else None,
+                reported_accuracy_meters=round(item.accuracy, 1),
+                client_ip=client_ip,
+                verification_method="OFFLINE_GPS",
+            )
+            db.add(record)
+            try:
+                db.commit()
+                db.refresh(record)
+            except IntegrityError:
+                db.rollback()
+                results.append(
+                    OfflineSyncResultItem(
+                        offline_id=item.offline_id,
+                        status="ALREADY_EXISTS",
+                        message=f"{item.event_type.value} was already recorded for {event_date}.",
+                    )
+                )
+                already_exists_count += 1
+                continue
+
+            event_schema = AttendanceEventSchema(
+                id=record.id,
+                event_type=AttendanceEventType(record.event_type),
+                event_date=record.event_date,
+                scanned_at=record.scanned_at,
+                scanned_at_ist=format_kolkata_time(record.scanned_at),
+                is_manually_corrected=record.is_manually_corrected,
+                verified_distance_meters=record.verified_distance_meters,
+                reported_accuracy_meters=record.reported_accuracy_meters,
+                verification_method=record.verification_method,
+            )
+
+            results.append(
+                OfflineSyncResultItem(
+                    offline_id=item.offline_id,
+                    status="SYNCED",
+                    message="Attendance successfully synced from offline buffer.",
+                    event=event_schema,
+                )
+            )
+            synced_count += 1
+
+        return OfflineSyncResponse(
+            synced_count=synced_count,
+            already_exists_count=already_exists_count,
+            failed_count=failed_count,
+            results=results,
+        )

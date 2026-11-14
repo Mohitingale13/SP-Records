@@ -1,14 +1,16 @@
 import React from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useOffline } from "../../contexts/OfflineContext";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { ShivamLogo } from "../common/ShivamLogo";
-import { LogOut } from "lucide-react";
+import { LogOut, WifiOff, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export const Header: React.FC = () => {
   const { isAuthenticated, logout } = useAuth();
   const { t } = useLanguage();
+  const { isOnline, pendingCount, isSyncing, syncNow } = useOffline();
   const navigate = useNavigate();
 
   return (
@@ -31,6 +33,29 @@ export const Header: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Offline / Pending Sync Badge */}
+        {!isOnline && (
+          <span
+            title="Application is running offline with satellite GPS"
+            className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-800 border border-amber-500/30 flex items-center gap-1 shadow-xs"
+          >
+            <WifiOff className="w-3 h-3 text-amber-600" />
+            <span className="hidden sm:inline">Offline</span>
+          </span>
+        )}
+
+        {isOnline && pendingCount > 0 && (
+          <button
+            onClick={syncNow}
+            disabled={isSyncing}
+            title="Click to sync offline attendance records now"
+            className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-primary/20 text-brand-dark border border-brand-primary/40 flex items-center gap-1 shadow-xs hover:bg-brand-primary/30 active:scale-95 transition-all"
+          >
+            <RefreshCw className={`w-3 h-3 text-brand-primary ${isSyncing ? "animate-spin" : ""}`} />
+            <span>Sync ({pendingCount})</span>
+          </button>
+        )}
+
         <LanguageToggle compact={isAuthenticated} size="sm" />
         {isAuthenticated && (
           <button

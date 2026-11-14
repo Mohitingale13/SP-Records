@@ -14,11 +14,14 @@ from reportlab.platypus import (
     KeepTogether,
     Image as RLImage,
 )
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.barcode.qr import QrCodeWidget
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from sqlalchemy.orm import Session
 from app.models.user import User
+from app.models.role import Role
 from app.models.attendance import AttendanceRecord, AttendanceEventType
 from app.core.timezone import format_kolkata_time, format_kolkata_datetime, utc_now
 
@@ -177,8 +180,14 @@ class ReportService:
                 "no_records": "No attendance records found for this period.",
             }
 
-        # Query Database
-        all_staff = db.query(User).order_by(User.full_name.asc()).all()
+        # Query Database (Exclude Super Admin who is exempt from staff attendance)
+        all_staff = (
+            db.query(User)
+            .join(Role, User.role_id == Role.id)
+            .filter(Role.name != "SUPER_ADMIN")
+            .order_by(User.full_name.asc())
+            .all()
+        )
         records = (
             db.query(AttendanceRecord)
             .filter(
@@ -451,5 +460,171 @@ class ReportService:
         elements.append(Paragraph(footnote_text, meta_style))
 
         doc.build(elements, canvasmaker=NumberedCanvas)
+        return buffer.getvalue()
+
+    @staticmethod
+    def generate_official_qr_poster_pdf(
+        organization_name: str,
+        qr_token_str: str,
+        geofence_radius: float = 100.0,
+    ) -> bytes:
+        """
+        Generates a high-resolution, vector-sharp A4 PDF poster suitable for printing
+        and laminating on the Shivam Patsanstha office counter / wall.
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=36,
+            rightMargin=36,
+            topMargin=36,
+            bottomMargin=36,
+        )
+
+        elements = []
+        font_family = "Devanagari" if HAS_DEVANAGARI_FONT else "Helvetica"
+        bold_font_family = "Devanagari-Bold" if HAS_DEVANAGARI_FONT else "Helvetica-Bold"
+
+        # 1. Organization Logo
+        if os.path.exists(LOGO_PATH):
+            logo_img = RLImage(LOGO_PATH, width=64, height=64)
+            logo_img.hAlign = "CENTER"
+            elements.append(logo_img)
+            elements.append(Spacer(1, 10))
+
+        # 2. Main Title (Bilingual)
+        title_style = ParagraphStyle(
+            "PosterTitle",
+            fontName=bold_font_family,
+            fontSize=20,
+            leading=26,
+            alignment=1,
+            textColor=colors.HexColor("#153B43"),
+        )
+        subtitle_style = ParagraphStyle(
+            "PosterSubtitle",
+            fontName=bold_font_family,
+            fontSize=12,
+            leading=16,
+            alignment=1,
+            textColor=colors.HexColor("#008080"),
+        )
+        badge_style = ParagraphStyle(
+            "PosterBadge",
+            fontName=bold_font_family,
+            fontSize=10.5,
+            leading=14,
+            alignment=1,
+            textColor=colors.HexColor("#92400E"),
+        )
+
+        elements.append(Paragraph("शिवम नागरी सहकारी पतसंस्था मर्यादित", title_style))
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph("Shivam Nagari Sahakari Patsanstha Maryadit", subtitle_style))
+        elements.append(Spacer(1, 10))
+
+        # Decorative Badge Pill
+        badge_table = Table(
+            [[Paragraph("अधिकृत कर्मचारी डिजिटल उपस्थिती फलक (OFFICIAL ATTENDANCE QR)", badge_style)]],
+            colWidths=[480],
+        )
+        badge_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),
+                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#F59E0B")),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ])
+        )
+        elements.append(badge_table)
+        elements.append(Spacer(1, 16))
+
+        # 3. Vector QR Code (Center)
+        qr_widget = QrCodeWidget(qr_token_str)
+        bounds = qr_widget.getBounds()
+        w = bounds[2] - bounds[0]
+        h = bounds[3] - bounds[1]
+        qr_size = 230
+        drawing = Drawing(qr_size, qr_size, transform=[qr_size / w, 0, 0, qr_size / h, 0, 0])
+        drawing.add(qr_widget)
+
+        # Frame around QR
+        qr_container = Table([[drawing]], colWidths=[260])
+        qr_container.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFFFFF")),
+                ("BOX", (0, 0), (-1, -1), 2, colors.HexColor("#008080")),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 14),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+            ])
+        )
+        elements.append(qr_container)
+        elements.append(Spacer(1, 16))
+
+        # 4. Security & Instructions Table
+        inst_title_style = ParagraphStyle(
+            "InstTitle",
+            fontName=bold_font_family,
+            fontSize=10.5,
+            leading=14,
+            textColor=colors.HexColor("#153B43"),
+        )
+        inst_body_style = ParagraphStyle(
+            "InstBody",
+            fontName=font_family,
+            fontSize=9,
+            leading=13.5,
+            textColor=colors.HexColor("#334155"),
+        )
+
+        sec_col = [
+            Paragraph("<b>सुरक्षा वैशिष्ट्ये (Security Features)</b>", inst_title_style),
+            Spacer(1, 4),
+            Paragraph(f"• <b>GPS Geofence:</b> {int(geofence_radius)} मीटर कार्यालयीन आवारातच उपस्थिती वैध.", inst_body_style),
+            Paragraph("• <b>Satellite GPS:</b> मोबाईल लोकेशनद्वारे प्रत्यक्ष उपस्थितीची पडताळणी.", inst_body_style),
+            Paragraph("• <b>Anti-Spoofing:</b> घरून किंवा बाहेरून फोटो स्कॅन केल्यास आपोआप बाद.", inst_body_style),
+        ]
+
+        how_col = [
+            Paragraph("<b>उपस्थिती नोंदवण्याची पद्धत (How to Scan)</b>", inst_title_style),
+            Spacer(1, 4),
+            Paragraph("१. मोबाईलमध्ये <b>Shivam Attendance</b> अ‍ॅप उघडा.", inst_body_style),
+            Paragraph("२. <b>'Scan QR'</b> बटण दाबून हा कोड स्कॅन करा.", inst_body_style),
+            Paragraph("३. आगमन, दुपारचे जेवण व निर्गमन वेळी स्कॅन करा.", inst_body_style),
+        ]
+
+        inst_table = Table([[sec_col, how_col]], colWidths=[240, 240])
+        inst_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#CBD5E1")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ])
+        )
+        elements.append(inst_table)
+        elements.append(Spacer(1, 14))
+
+        # 5. Footer Seal
+        footer_style = ParagraphStyle(
+            "FooterNotice",
+            fontName=font_family,
+            fontSize=8.5,
+            leading=12,
+            alignment=1,
+            textColor=colors.HexColor("#64748B"),
+        )
+        elements.append(
+            Paragraph("शिवम पतसंस्था – अधिकृत डिजिटल उपस्थिती व्यवस्थापन प्रणाली | बारामती", footer_style)
+        )
+
+        doc.build(elements)
         return buffer.getvalue()
 

@@ -122,3 +122,24 @@ def test_admin_correction_and_staff_history(client: TestClient, db_session: Sess
     assert any(log["action"] == "CORRECTION" and "CCTV" in log["reason"] for log in logs)
 
 
+def test_branch_admin_does_not_see_super_admin_in_staff_or_monitor(client: TestClient, db_session: Session):
+    """Verifies that Super Admin is completely excluded from daily attendance monitor and staff list for branch admins."""
+    # Register staff and branch admin
+    get_authenticated_staff(client, phone="+919876543301", name="Normal Staff 1")
+    admin_token = get_authenticated_admin(client, phone="+919876543302", name="Branch Manager 1")
+
+    # 1. Daily monitor for branch admin must NOT contain SUPER_ADMIN
+    monitor_res = client.get("/api/v1/admin/daily-monitor", headers={"Authorization": f"Bearer {admin_token}"})
+    assert monitor_res.status_code == 200
+    monitor_data = monitor_res.json()
+    for item in monitor_data["staff_attendance"]:
+        assert item["user"]["role"] != "SUPER_ADMIN"
+
+    # 2. Staff list for branch admin must NOT contain SUPER_ADMIN
+    staff_res = client.get("/api/v1/admin/staff", headers={"Authorization": f"Bearer {admin_token}"})
+    assert staff_res.status_code == 200
+    staff_users = staff_res.json()
+    assert all(u["role"] != "SUPER_ADMIN" for u in staff_users)
+
+
+

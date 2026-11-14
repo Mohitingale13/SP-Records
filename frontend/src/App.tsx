@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { OfflineProvider } from "./contexts/OfflineContext";
 import { AppRoutes } from "./routes/AppRoutes";
 
 export const App: React.FC = () => {
@@ -9,7 +10,9 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <LanguageProvider>
         <AuthProvider>
-          <AppRoutes />
+          <OfflineProvider>
+            <AppRoutes />
+          </OfflineProvider>
         </AuthProvider>
       </LanguageProvider>
     </BrowserRouter>

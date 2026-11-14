@@ -80,12 +80,13 @@ class LocationService:
         office_lat: float,
         office_lon: float,
         geofence_radius: float,
+        reference_time: Optional[datetime] = None,
     ) -> Tuple[bool, Optional[float], Optional[str]]:
         """
         Comprehensive Server-Side Location Verification:
         1. Coordinate range validation.
         2. Accuracy threshold validation.
-        3. Freshness validation.
+        3. Freshness validation (against reference_time or current server time).
         4. Haversine distance geofence validation.
 
         Returns: (is_valid, distance_in_meters, error_message_if_any)
@@ -109,12 +110,15 @@ class LocationService:
 
         # 3. Validate location timestamp freshness (prevent coordinate replay)
         if location_timestamp:
-            now = utc_now()
+            baseline_time = reference_time if reference_time is not None else utc_now()
+            if baseline_time.tzinfo is None:
+                baseline_time = baseline_time.replace(tzinfo=utc_now().tzinfo)
+
             loc_time = location_timestamp
             if loc_time.tzinfo is None:
-                loc_time = loc_time.replace(tzinfo=now.tzinfo)
+                loc_time = loc_time.replace(tzinfo=baseline_time.tzinfo)
 
-            elapsed_seconds = abs((now - loc_time).total_seconds())
+            elapsed_seconds = abs((baseline_time - loc_time).total_seconds())
             if elapsed_seconds > settings.LOCATION_TIMESTAMP_MAX_AGE_SECONDS:
                 return (
                     False,

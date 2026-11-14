@@ -64,3 +64,32 @@ class OfficeLocationUpdateRequest(BaseModel):
     office_longitude: float = Field(..., ge=-180.0, le=180.0)
     geofence_radius_meters: float = Field(..., gt=0.0, le=10000.0)
     reason: str = Field(..., min_length=5, description="Audit justification for altering official office geofence")
+
+
+class OfflineAttendanceItem(BaseModel):
+    offline_id: str = Field(..., description="Client-generated unique ID for offline record correlation")
+    event_type: AttendanceEventType = Field(..., description="Attendance event type")
+    qr_token: Optional[str] = Field(None, description="Optional scanned token or office code")
+    latitude: float = Field(..., ge=-90.0, le=90.0, description="Device latitude captured at scan time")
+    longitude: float = Field(..., ge=-180.0, le=180.0, description="Device longitude captured at scan time")
+    accuracy: float = Field(..., gt=0.0, description="Device GPS accuracy in meters")
+    scanned_at: datetime = Field(..., description="Offline scan timestamp")
+    location_timestamp: Optional[datetime] = Field(None, description="GPS fix acquisition timestamp")
+
+
+class OfflineSyncRequest(BaseModel):
+    events: List[OfflineAttendanceItem] = Field(..., min_length=1, max_length=50)
+
+
+class OfflineSyncResultItem(BaseModel):
+    offline_id: str
+    status: str  # "SYNCED", "ALREADY_EXISTS", "REJECTED"
+    message: str
+    event: Optional[AttendanceEventSchema] = None
+
+
+class OfflineSyncResponse(BaseModel):
+    synced_count: int
+    already_exists_count: int
+    failed_count: int
+    results: List[OfflineSyncResultItem]

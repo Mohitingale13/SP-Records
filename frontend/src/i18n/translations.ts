@@ -100,9 +100,7 @@ export interface Translations {
   superAdminDesc: string;
   superAdminExecutiveHub: string;
   superAdminExecutiveNotice: string;
-  superAdminLaunchKiosk: string;
   superAdminAdminSuiteDesc: string;
-  superAdminKioskDesc: string;
   superAdminHistoryDesc: string;
   overview: string;
   staffMember: string;
@@ -112,14 +110,6 @@ export interface Translations {
   revokeAdmin: string;
   confirmRoleChange: string;
   roleChangeSuccess: string;
-
-  // QR Kiosk
-  kioskTitle: string;
-  kioskSubtitle: string;
-  kioskClockTitle: string;
-  kioskRotatingNotice: string;
-  kioskRefreshQr: string;
-  kioskCountdown: string;
 
   // Audit Logs & Details
   auditLogsTitle: string;
@@ -145,6 +135,37 @@ export interface Translations {
   officeLocationSettings: string;
   officeCoordinates: string;
   geofenceRadius: string;
+
+  // Offline & Background Sync
+  offlineMode: string;
+  offlineGpsReady: string;
+  offlineSavedBanner: string;
+  offlineSyncPending: string;
+  syncNow: string;
+  syncing: string;
+  syncSuccess: string;
+  offlinePendingBadge: string;
+
+  // Static Printed QR & Downloads
+  officialOfficeQrTitle: string;
+  officialOfficeQrDesc: string;
+  downloadHighResPng: string;
+  downloadPrintablePdf: string;
+  printCounterCard: string;
+
+  // Attendance Scan Feedback (Green / Red Screen)
+  scanSuccessTitle: string;
+  scanSuccessSubtitle: string;
+  scanFailedTitle: string;
+  scanFailedSubtitle: string;
+  tryAgain: string;
+  done: string;
+  directGpsCheckIn: string;
+  cameraErrorPermission: string;
+  cameraErrorNotFound: string;
+  gpsErrorPermission: string;
+  gpsErrorUnavailable: string;
+  outsideGeofenceMessage: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -182,7 +203,7 @@ export const translations: Record<Language, Translations> = {
     statusCompleted: "Day Completed",
     logout: "Log Out",
     scannerTitle: "Office QR Scanner",
-    scannerHint: "Point your phone camera at the rotating QR display at the office counter.",
+    scannerHint: "Point your phone camera at the official QR poster at the office counter.",
     cameraPermissionNeeded: "Please allow camera access to scan the attendance QR code.",
     scanningSuccess: "Attendance recorded successfully!",
     rapidScanWarning: "Please wait a few seconds before scanning again.",
@@ -247,10 +268,8 @@ export const translations: Record<Language, Translations> = {
     superAdminTitle: "Super Admin Role Management",
     superAdminDesc: "Assign or revoke Admin operational roles for registered staff members.",
     superAdminExecutiveHub: "Super Administrator Hub",
-    superAdminExecutiveNotice: "Super Admin privileges active. Personal QR attendance check-in is exempt for this account. You have full executive control over organization attendance, kiosks, and records.",
-    superAdminLaunchKiosk: "Launch Office Kiosk",
+    superAdminExecutiveNotice: "Super Admin privileges active. Personal QR attendance check-in is exempt for this account. You have full executive control over organization attendance, settings, and records.",
     superAdminAdminSuiteDesc: "Manage staff roster, monitor today's attendance, manual corrections, and office location settings.",
-    superAdminKioskDesc: "Display the 20-second rotating HMAC QR code on the office kiosk screen.",
     superAdminHistoryDesc: "Inspect staff attendance logs, monthly summaries, and generate official PDF reports.",
     overview: "Overview",
     staffMember: "Staff Member",
@@ -260,14 +279,6 @@ export const translations: Record<Language, Translations> = {
     revokeAdmin: "Revoke Admin",
     confirmRoleChange: "Are you sure you want to change this user's role?",
     roleChangeSuccess: "Role updated successfully!",
-
-    // QR Kiosk
-    kioskTitle: "Shivam Patsanstha Attendance Kiosk",
-    kioskSubtitle: "Point your phone camera at the QR code below to register your attendance.",
-    kioskClockTitle: "Official Indian Standard Time",
-    kioskRotatingNotice: "This QR code rotates automatically every 20 seconds for security.",
-    kioskRefreshQr: "Force Refresh",
-    kioskCountdown: "Refreshing in",
 
     // Audit Logs & Details
     auditLogsTitle: "Administrative Audit Logs",
@@ -293,6 +304,37 @@ export const translations: Record<Language, Translations> = {
     officeLocationSettings: "Office Location Settings",
     officeCoordinates: "Office Coordinates",
     geofenceRadius: "Geofence Radius (meters)",
+
+    // Offline & Background Sync
+    offlineMode: "Offline Mode",
+    offlineGpsReady: "Offline Mode (GPS Active)",
+    offlineSavedBanner: "Attendance saved offline! Will automatically sync when internet restores.",
+    offlineSyncPending: "offline record(s) queued for sync",
+    syncNow: "Sync Now",
+    syncing: "Syncing...",
+    syncSuccess: "Offline records synced to cloud successfully!",
+    offlinePendingBadge: "Offline (Pending Sync)",
+
+    // Static Printed QR & Downloads
+    officialOfficeQrTitle: "Official Office Attendance QR",
+    officialOfficeQrDesc: "Print and paste this official QR on the office counter or entrance. Attendance is strictly verified by satellite GPS within 100m.",
+    downloadHighResPng: "QR (PNG)",
+    downloadPrintablePdf: "Poster (PDF)",
+    printCounterCard: "Print Standee Now",
+
+    // Attendance Scan Feedback (Green / Red Screen)
+    scanSuccessTitle: "Attendance Marked Successfully!",
+    scanSuccessSubtitle: "Your presence has been officially verified.",
+    scanFailedTitle: "Could Not Mark Attendance",
+    scanFailedSubtitle: "Please check the issue below and try again.",
+    tryAgain: "Try Again",
+    done: "Done",
+    directGpsCheckIn: "Direct GPS Check-In",
+    cameraErrorPermission: "Camera access blocked. Please allow camera permissions in browser site settings.",
+    cameraErrorNotFound: "No camera detected on this device. Please use Direct GPS Check-In.",
+    gpsErrorPermission: "Location access denied. Please enable location permissions in browser settings.",
+    gpsErrorUnavailable: "Unable to acquire satellite GPS fix. Please ensure location is turned on.",
+    outsideGeofenceMessage: "You are outside the 100m office area. Attendance must be logged on office premises.",
   },
   mr: {
     appName: "शिवम पतसंस्था",
@@ -328,7 +370,7 @@ export const translations: Record<Language, Translations> = {
     statusCompleted: "आजची उपस्थिती पूर्ण झाली",
     logout: "लॉग आउट करा",
     scannerTitle: "कार्यालय QR स्कॅनर",
-    scannerHint: "कार्यालयीन काउंटरवरील स्क्रीनवर फिरणारा QR कोड कॅमेरासमोर धरा.",
+    scannerHint: "कार्यालयीन काउंटरवरील अधिकृत QR कोड पोस्टरवर फोनचा कॅमेरा धरा.",
     cameraPermissionNeeded: "उपस्थिती QR कोड स्कॅन करण्यासाठी कॅमेरा परवानगी द्या.",
     scanningSuccess: "उपस्थिती यशस्वीरित्या नोंदवली गेली!",
     rapidScanWarning: "कृपया पुन्हा स्कॅन करण्यापूर्वी काही सेकंद प्रतीक्षा करा.",
@@ -394,9 +436,7 @@ export const translations: Record<Language, Translations> = {
     superAdminDesc: "नोंदणीकृत कर्मचाऱ्यांना प्रशासकीय (Admin) अधिकार द्या किंवा रद्द करा.",
     superAdminExecutiveHub: "सुपर ॲडमिनिस्ट्रेटर केंद्र",
     superAdminExecutiveNotice: "सुपर ॲडमिन विशेषाधिकार सक्रिय. या खात्यासाठी वैयक्तिक QR उपस्थिती नोंदवण्याची आवश्यकता नाही. आपल्याकडे संस्थेचे संपूर्ण प्रशासकीय नियंत्रण आहे.",
-    superAdminLaunchKiosk: "कार्यालय किऑस्क सुरू करा",
     superAdminAdminSuiteDesc: "कर्मचारी यादी, आजची उपस्थिती, रेकॉर्ड दुरुस्ती आणि कार्यालय सेटिंग्ज व्यवस्थापित करा.",
-    superAdminKioskDesc: "कार्यालयीन काउंटरवरील स्क्रीनवर २०-सेकंदांचा सुरक्षित QR कोड प्रदर्शित करा.",
     superAdminHistoryDesc: "कर्मचाऱ्यांचे उपस्थिती नोंदी, मासिक सारांश आणि PDF अहवाल तपासा.",
     overview: "प्रशासन केंद्र",
     staffMember: "कर्मचारी",
@@ -406,14 +446,6 @@ export const translations: Record<Language, Translations> = {
     revokeAdmin: "ॲडमिन रद्द करा",
     confirmRoleChange: "तुम्हाला खरोखर या वापरकर्त्याची भूमिका बदलायची आहे का?",
     roleChangeSuccess: "भूमिका यशस्वीरित्या बदलली गेली!",
-
-    // QR Kiosk
-    kioskTitle: "शिवम पतसंस्था उपस्थिती किऑस्क",
-    kioskSubtitle: "तुमची उपस्थिती नोंदवण्यासाठी खालील QR कोड फोन कॅमेराने स्कॅन करा.",
-    kioskClockTitle: "भारतीय प्रमाणवेळ (IST)",
-    kioskRotatingNotice: "सुरक्षेसाठी हा QR कोड दर २० सेकंदांनी आपोआप बदलतो.",
-    kioskRefreshQr: "आताच बदला",
-    kioskCountdown: "पुढील बदल",
 
     // Audit Logs & Details
     auditLogsTitle: "प्रशासकीय बदल नोंदवही (Audit Logs)",
@@ -439,5 +471,36 @@ export const translations: Record<Language, Translations> = {
     officeLocationSettings: "कार्यालय स्थान सेटिंग्ज",
     officeCoordinates: "कार्यालय निर्देशांक",
     geofenceRadius: "जिओफेन्स मर्यादा (मीटर)",
+
+    // Offline & Background Sync
+    offlineMode: "ऑफलाइन मोड",
+    offlineGpsReady: "ऑफलाइन मोड (GPS सुरू)",
+    offlineSavedBanner: "उपस्थिती ऑफलाइन सेव्ह केली! इंटरनेट सुरू झाल्यावर आपोआप सिंक होईल.",
+    offlineSyncPending: "ऑफलाइन नोंदी सिंक होणे बाकी",
+    syncNow: "आता सिंक करा",
+    syncing: "सिंक होत आहे...",
+    syncSuccess: "ऑफलाइन नोंदी यशस्वीरित्या सिंक झाल्या!",
+    offlinePendingBadge: "ऑफलाइन (सिंक प्रलंबित)",
+
+    // Static Printed QR & Downloads
+    officialOfficeQrTitle: "अधिकृत कार्यालयीन उपस्थिती QR कोड",
+    officialOfficeQrDesc: "हा अधिकृत QR कोड प्रिंट करून कार्यालयीन काउंटरवर लावा. १०० मीटर आवारातच उपस्थिती वैध ठरेल.",
+    downloadHighResPng: "QR (PNG)",
+    downloadPrintablePdf: "पोस्टर (PDF)",
+    printCounterCard: "आताच प्रिंट करा",
+
+    // Attendance Scan Feedback (Green / Red Screen)
+    scanSuccessTitle: "उपस्थिती यशस्वीरित्या नोंदवली!",
+    scanSuccessSubtitle: "तुमची उपस्थिती अधिकृतपणे तपासली व नोंदवली गेली आहे.",
+    scanFailedTitle: "उपस्थिती नोंदवता आली नाही",
+    scanFailedSubtitle: "खालील अडचण तपासा आणि पुन्हा प्रयत्न करा.",
+    tryAgain: "पुन्हा प्रयत्न करा",
+    done: "पूर्ण झाले",
+    directGpsCheckIn: "थेट GPS उपस्थिती",
+    cameraErrorPermission: "कॅमेरा परवानगी बंद आहे. कृपया ब्राऊझर सेटिंग्जमध्ये जाऊन परवानगी द्या.",
+    cameraErrorNotFound: "या फोनवर कॅमेरा सापडला नाही. थेट GPS उपस्थिती पर्याय वापरा.",
+    gpsErrorPermission: "स्थान (GPS) परवानगी बंद आहे. कृपया ब्राऊझर सेटिंग्जमध्ये लोकेशन सुरू करा.",
+    gpsErrorUnavailable: "GPS सिग्नल मिळू शकला नाही. कृपया फोनचे लोकेशन (GPS) चालू करा.",
+    outsideGeofenceMessage: "तुम्ही कार्यालयाच्या १०० मीटर आवाराबाहेर आहात. उपस्थिती केवळ शिवम पतसंस्था कार्यालयातच नोंदवता येईल.",
   },
 };

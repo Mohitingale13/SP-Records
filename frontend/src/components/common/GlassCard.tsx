@@ -4,7 +4,7 @@ interface GlassCardProps {
   children: React.ReactNode;
   className?: string;
   subtle?: boolean;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 export const GlassCard: React.FC<GlassCardProps> = ({

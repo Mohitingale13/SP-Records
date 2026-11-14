@@ -23,7 +23,7 @@ describe("Frontend Localization & Translations", () => {
       expect(dict.weeklyReport).toBeTruthy();
       expect(dict.monthlyReport).toBeTruthy();
       expect(dict.auditLogsTitle).toBeTruthy();
-      expect(dict.kioskClockTitle).toBeTruthy();
+      expect(dict.officialOfficeQrTitle).toBeTruthy();
     }
   });
 
@@ -89,5 +89,21 @@ describe("Physical Presence & Geofencing Client Verification", () => {
     expect(isAccuracyAcceptable(100)).toBe(true);
     expect(isAccuracyAcceptable(101)).toBe(false);
     expect(isAccuracyAcceptable(250)).toBe(false);
+  });
+});
+
+describe("Offline Mode & Background Sync", () => {
+  it("should have all offline-related translation keys in English and Marathi", () => {
+    for (const lang of ["en", "mr"] as const) {
+      const dict = translations[lang];
+      expect(dict.offlineMode).toBeTruthy();
+      expect(dict.offlineGpsReady).toBeTruthy();
+      expect(dict.offlineSavedBanner).toBeTruthy();
+      expect(dict.offlineSyncPending).toBeTruthy();
+      expect(dict.syncNow).toBeTruthy();
+      expect(dict.syncing).toBeTruthy();
+      expect(dict.syncSuccess).toBeTruthy();
+      expect(dict.offlinePendingBadge).toBeTruthy();
+    }
   });
 });

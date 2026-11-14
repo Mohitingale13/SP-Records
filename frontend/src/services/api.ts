@@ -3,12 +3,13 @@ import type {
   UserSummary,
   AttendanceStatusSummary,
   AttendanceEvent,
-  QRTokenResponse,
   DailyMonitorResponse,
   AuditLog,
   RoleName,
   OfficeLocationConfig,
   ScanLocationPayload,
+  OfflineSyncItemPayload,
+  OfflineSyncResponse,
 } from "../types";
 
 const API_BASE_URL =
@@ -111,11 +112,32 @@ export const attendanceAPI = {
     const res = await apiClient.get<AttendanceEvent[]>("/attendance/history", { params });
     return res.data;
   },
+
+  syncOffline: async (events: OfflineSyncItemPayload[]): Promise<OfflineSyncResponse> => {
+    const res = await apiClient.post<OfflineSyncResponse>("/attendance/sync-offline", { events });
+    return res.data;
+  },
 };
 
 export const qrAPI = {
-  rotate: async (): Promise<QRTokenResponse> => {
-    const res = await apiClient.post<QRTokenResponse>("/qr/rotate");
+  getOfficeStatic: async (): Promise<{
+    token: string;
+    raw_code: string;
+    organization_code: string;
+    organization_name: string;
+    office_latitude: number;
+    office_longitude: number;
+    geofence_radius_meters: number;
+    verification_mode: string;
+  }> => {
+    const res = await apiClient.get("/qr/office-static");
+    return res.data;
+  },
+
+  downloadPrintPdf: async (): Promise<Blob> => {
+    const res = await apiClient.get("/qr/print-pdf", {
+      responseType: "blob",
+    });
     return res.data;
   },
 };

@@ -234,11 +234,11 @@ export const StaffDashboard: React.FC = () => {
           <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-amber-500/20 text-center">
             <div className="p-2 rounded-xl bg-white/50 border border-white/70">
               <div className="text-[10px] font-bold text-brand-muted uppercase">Geofence</div>
-              <div className="text-xs font-bold text-emerald-700 mt-0.5">100m Active</div>
+              <div className="text-xs font-bold text-emerald-700 mt-0.5">50m Active</div>
             </div>
             <div className="p-2 rounded-xl bg-white/50 border border-white/70">
               <div className="text-[10px] font-bold text-brand-muted uppercase">QR Security</div>
-              <div className="text-xs font-bold text-brand-primary mt-0.5">100m GPS</div>
+              <div className="text-xs font-bold text-brand-primary mt-0.5">50m GPS</div>
             </div>
             <div className="p-2 rounded-xl bg-white/50 border border-white/70">
               <div className="text-[10px] font-bold text-brand-muted uppercase">Database</div>
@@ -348,7 +348,7 @@ export const StaffDashboard: React.FC = () => {
               <div className="space-y-1.5 pt-1">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-800 border border-emerald-500/30 inline-flex items-center gap-1 shadow-xs">
                   <MapPin className="w-3 h-3 text-emerald-600" />
-                  100m GPS Geofenced
+                  50m GPS Geofenced
                 </span>
                 <h3 className="text-base font-bold text-brand-dark">
                   {staticOrgName}

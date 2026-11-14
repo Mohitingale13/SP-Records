@@ -320,7 +320,7 @@ export const translations: Record<Language, Translations> = {
 
     // Static Printed QR & Downloads
     officialOfficeQrTitle: "Official Office Attendance QR",
-    officialOfficeQrDesc: "Print and paste this official QR on the office counter or entrance. Attendance is strictly verified by satellite GPS within 100m.",
+    officialOfficeQrDesc: "Print and paste this official QR on the office counter or entrance. Attendance is strictly verified by satellite GPS within 50m.",
     downloadHighResPng: "QR (PNG)",
     downloadPrintablePdf: "Poster (PDF)",
     printCounterCard: "Print Standee Now",
@@ -337,7 +337,7 @@ export const translations: Record<Language, Translations> = {
     cameraErrorNotFound: "No camera detected on this device. Please use Direct GPS Check-In.",
     gpsErrorPermission: "Location access denied. Please enable location permissions in browser settings.",
     gpsErrorUnavailable: "Unable to acquire satellite GPS fix. Please ensure location is turned on.",
-    outsideGeofenceMessage: "You are outside the 100m office area. Attendance must be logged on office premises.",
+    outsideGeofenceMessage: "You are outside the 50m office area. Attendance must be logged on office premises.",
     myAttendanceTab: "My Attendance",
     staffRecordsTab: "Staff Records",
     staffAttendanceRosterTitle: "Staff Attendance Records",
@@ -490,7 +490,7 @@ export const translations: Record<Language, Translations> = {
 
     // Static Printed QR & Downloads
     officialOfficeQrTitle: "अधिकृत कार्यालयीन उपस्थिती QR कोड",
-    officialOfficeQrDesc: "हा अधिकृत QR कोड प्रिंट करून कार्यालयीन काउंटरवर लावा. १०० मीटर आवारातच उपस्थिती वैध ठरेल.",
+    officialOfficeQrDesc: "हा अधिकृत QR कोड प्रिंट करून कार्यालयीन काउंटरवर लावा. ५० मीटर आवारातच उपस्थिती वैध ठरेल.",
     downloadHighResPng: "QR (PNG)",
     downloadPrintablePdf: "पोस्टर (PDF)",
     printCounterCard: "आताच प्रिंट करा",
@@ -507,7 +507,7 @@ export const translations: Record<Language, Translations> = {
     cameraErrorNotFound: "या फोनवर कॅमेरा सापडला नाही. थेट GPS उपस्थिती पर्याय वापरा.",
     gpsErrorPermission: "स्थान (GPS) परवानगी बंद आहे. कृपया ब्राऊझर सेटिंग्जमध्ये लोकेशन सुरू करा.",
     gpsErrorUnavailable: "GPS सिग्नल मिळू शकला नाही. कृपया फोनचे लोकेशन (GPS) चालू करा.",
-    outsideGeofenceMessage: "तुम्ही कार्यालयाच्या १०० मीटर आवाराबाहेर आहात. उपस्थिती केवळ शिवम पतसंस्था कार्यालयातच नोंदवता येईल.",
+    outsideGeofenceMessage: "तुम्ही कार्यालयाच्या ५० मीटर आवाराबाहेर आहात. उपस्थिती केवळ शिवम पतसंस्था कार्यालयातच नोंदवता येईल.",
     myAttendanceTab: "माझी उपस्थिती",
     staffRecordsTab: "कर्मचारी नोंदी",
     staffAttendanceRosterTitle: "कर्मचारी उपस्थिती नोंदी",

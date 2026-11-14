@@ -238,7 +238,7 @@ def test_super_admin_office_location_configuration(client: TestClient):
     loc_data = get_res.json()
     assert loc_data["office_latitude"] == 18.1361880
     assert loc_data["office_longitude"] == 74.5104810
-    assert loc_data["geofence_radius_meters"] == 100.0
+    assert loc_data["geofence_radius_meters"] == 50.0
 
     # 2. Update office location
     patch_res = client.patch(
@@ -280,7 +280,7 @@ def test_super_admin_office_location_configuration(client: TestClient):
         json={
             "office_latitude": 18.1361880,
             "office_longitude": 74.5104810,
-            "geofence_radius_meters": 100.0,
+            "geofence_radius_meters": 50.0,
             "reason": "Restoring default office coordinates",
         },
     )

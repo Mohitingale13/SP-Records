@@ -36,14 +36,15 @@ def list_staff(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
+    # Super Admin is purely for executive settings and is completely excluded from operational staff lists
     query = (
         db.query(User)
         .join(Role, User.role_id == Role.id)
-        .filter(User.organization_id == current_admin.organization_id)
+        .filter(
+            User.organization_id == current_admin.organization_id,
+            Role.name != RoleName.SUPER_ADMIN.value,
+        )
     )
-    # Branch Admins must never see Super Admin
-    if current_admin.role.name != RoleName.SUPER_ADMIN.value:
-        query = query.filter(Role.name != RoleName.SUPER_ADMIN.value)
 
     return query.order_by(User.full_name.asc()).all()
 

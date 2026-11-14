@@ -61,11 +61,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         const dist = match ? match[1] : null;
         if (isMr) {
           return dist
-            ? `तुम्ही कार्यालयापासून अंदाजे ${dist} मीटर अंतरावर आहात. उपस्थिती फक्त शिवम पतसंस्था कार्यालयाच्या १०० मीटर आवारातच नोंदवता येईल.`
+            ? `तुम्ही कार्यालयापासून अंदाजे ${dist} मीटर अंतरावर आहात. उपस्थिती फक्त शिवम पतसंस्था कार्यालयाच्या ५० मीटर आवारातच नोंदवता येईल.`
             : t.outsideGeofenceMessage;
         }
         return dist
-          ? `You are approximately ${dist} meters away from the office. Attendance can only be recorded within 100m of Shivam Patsanstha office.`
+          ? `You are approximately ${dist} meters away from the office. Attendance can only be recorded within 50m of Shivam Patsanstha office.`
           : t.outsideGeofenceMessage;
       }
 
@@ -189,8 +189,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         const { latitude, longitude, accuracy } = pos.coords;
         const location_timestamp = new Date(pos.timestamp).toISOString();
 
-        // Check reported accuracy threshold (100m maximum acceptable)
-        if (accuracy > 100) {
+        // Check reported accuracy threshold (50m maximum acceptable)
+        if (accuracy > 50) {
           const friendlyAcc =
             language === "mr"
               ? "GPS सिग्नल कमकुवत आहे. कृपया खिडकीजवळ किंवा मोकळ्या जागेत जा आणि पुन्हा प्रयत्न करा."
@@ -619,7 +619,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                     <span className="text-xs font-semibold">{stepMessage || t.locationVerifying}</span>
                   </div>
                   <p className="text-[10px] text-white/70 max-w-[220px]">
-                    {language === "mr" ? "कार्यालयीन १०० मीटर जिओफेन्स पडताळणी..." : "Validating physical presence within 100m geofence"}
+                    {language === "mr" ? "कार्यालयीन ५० मीटर जिओफेन्स पडताळणी..." : "Validating physical presence within 50m geofence"}
                   </p>
                 </div>
               )}

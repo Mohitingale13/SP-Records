@@ -501,7 +501,7 @@ export const AdminDashboard: React.FC = () => {
 
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-800 border border-emerald-500/30 flex items-center gap-1 shadow-xs">
             <MapPin className="w-3 h-3 text-emerald-600" />
-            100m GPS
+            50m GPS
           </span>
         </div>
 
@@ -549,7 +549,7 @@ export const AdminDashboard: React.FC = () => {
               {t.officialOfficeQrDesc}
             </p>
             <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-md w-fit mx-auto sm:mx-0">
-              <span>✓ 100m GPS</span>
+              <span>✓ 50m GPS</span>
               <span>•</span>
               <span>✓ Offline</span>
               <span>•</span>
@@ -705,52 +705,57 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-2 pt-2">
-            {allStaff.length === 0 ? (
+            {allStaff.filter((s) => {
+              const r = s.role as any;
+              const roleName = (typeof r === "object" && r?.name) ? r.name : (r || "");
+              return roleName !== "SUPER_ADMIN";
+            }).length === 0 ? (
               <p className="text-xs text-brand-muted text-center py-2">No registered staff found.</p>
             ) : (
-              allStaff.map((staff) => {
-                const isAdmin = staff.role === "ADMIN";
-                const isSuper = staff.role === "SUPER_ADMIN";
+              allStaff
+                .filter((s) => {
+                  const r = s.role as any;
+                  const roleName = (typeof r === "object" && r?.name) ? r.name : (r || "");
+                  return roleName !== "SUPER_ADMIN";
+                })
+                .map((staff) => {
+                  const r = staff.role as any;
+                  const roleName = (typeof r === "object" && r?.name) ? r.name : (r || "");
+                  const isAdmin = roleName === "ADMIN";
 
-                return (
-                  <div
-                    key={staff.id}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-white/50 border border-white/80"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-brand-dark flex items-center gap-1.5">
-                        <span>{staff.full_name}</span>
-                        {isSuper && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500/20 text-amber-800 border border-amber-500/30">
-                            SUPER ADMIN
-                          </span>
-                        )}
-                        {isAdmin && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-500/20 text-teal-800 border border-teal-500/30">
-                            ADMIN
-                          </span>
-                        )}
+                  return (
+                    <div
+                      key={staff.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-white/50 border border-white/80"
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-brand-dark flex items-center gap-1.5">
+                          <span>{staff.full_name}</span>
+                          {isAdmin && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-500/20 text-teal-800 border border-teal-500/30">
+                              ADMIN
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-brand-muted">{formatPhone(staff.phone_number)}</span>
                       </div>
-                      <span className="text-[10px] text-brand-muted">{formatPhone(staff.phone_number)}</span>
-                    </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setResetPinStaff(staff);
-                          setResetPinError(null);
-                          setNewStaffPin("");
-                          setConfirmStaffPin("");
-                          setResetPinReason("");
-                        }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 transition-all flex items-center gap-1"
-                        title={t.resetPinButton}
-                      >
-                        <KeyRound className="w-3.5 h-3.5 text-amber-700" />
-                        <span className="hidden sm:inline">{t.resetPinButton}</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setResetPinStaff(staff);
+                            setResetPinError(null);
+                            setNewStaffPin("");
+                            setConfirmStaffPin("");
+                            setResetPinReason("");
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 transition-all flex items-center gap-1"
+                          title={t.resetPinButton}
+                        >
+                          <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                          <span className="hidden sm:inline">{t.resetPinButton}</span>
+                        </button>
 
-                      {!isSuper && (
                         <button
                           onClick={() => setRoleActionStaff(staff)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
@@ -771,11 +776,10 @@ export const AdminDashboard: React.FC = () => {
                             </>
                           )}
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })
             )}
           </div>
         </GlassCard>
@@ -853,7 +857,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-2.5 rounded-xl bg-white/60 border border-white/80">
                 <span className="text-[10px] text-brand-muted block font-semibold">GEOFENCE RADIUS</span>
                 <span className="font-mono font-bold text-emerald-700">
-                  {officeLocation?.geofence_radius_meters ?? "100"} meters
+                  {officeLocation?.geofence_radius_meters ?? "50"} meters
                 </span>
               </div>
             </div>
@@ -1191,7 +1195,7 @@ export const AdminDashboard: React.FC = () => {
             <div className="space-y-1.5 pt-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-800 border border-emerald-500/30 inline-flex items-center gap-1 shadow-xs">
                 <MapPin className="w-3 h-3 text-emerald-600" />
-                100m GPS Geofenced
+                50m GPS Geofenced
               </span>
               <h3 className="text-base font-bold text-brand-dark">
                 {staticOrgName}

@@ -221,8 +221,10 @@ export const AttendanceHistoryScreen: React.FC = () => {
   // Filter staff list
   const filteredStaffList = useMemo(() => {
     return allStaffList.filter((staff) => {
-      // Exclude Super Admin from attendance roster
-      if (staff.role === "SUPER_ADMIN") return false;
+      // Exclude Super Admin completely from attendance roster
+      const r = staff.role as any;
+      const roleName = (typeof r === "object" && r?.name) ? r.name : (r || "");
+      if (roleName === "SUPER_ADMIN") return false;
 
       const matchesSearch =
         staff.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||

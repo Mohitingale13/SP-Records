@@ -38,9 +38,9 @@ class Settings(BaseSettings):
     # Physical Presence Geofencing (Official Shivam Patsanstha Registered Office)
     OFFICE_LATITUDE: float = 18.1361880
     OFFICE_LONGITUDE: float = 74.5104810
-    ATTENDANCE_GEOFENCE_RADIUS_METERS: float = 100.0
-    PREFERRED_LOCATION_ACCURACY_METERS: float = 50.0
-    MAX_ACCEPTABLE_LOCATION_ACCURACY_METERS: float = 100.0
+    ATTENDANCE_GEOFENCE_RADIUS_METERS: float = 50.0
+    PREFERRED_LOCATION_ACCURACY_METERS: float = 30.0
+    MAX_ACCEPTABLE_LOCATION_ACCURACY_METERS: float = 50.0
     LOCATION_TIMESTAMP_MAX_AGE_SECONDS: int = 120
 
     # Optional Office Wi-Fi / IP Restriction (disabled by default)

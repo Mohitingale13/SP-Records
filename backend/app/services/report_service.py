@@ -467,7 +467,7 @@ class ReportService:
     def generate_official_qr_poster_pdf(
         organization_name: str,
         qr_token_str: str,
-        geofence_radius: float = 100.0,
+        geofence_radius: float = 50.0,
     ) -> bytes:
         """
         Generates a high-resolution, vector-sharp A4 PDF poster suitable for printing

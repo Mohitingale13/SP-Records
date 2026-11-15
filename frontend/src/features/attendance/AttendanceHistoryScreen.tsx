@@ -137,21 +137,21 @@ export const AttendanceHistoryScreen: React.FC = () => {
   };
 
   // Fetch Personal History
-  const fetchMyHistory = useCallback(async () => {
-    setIsLoadingMyHistory(true);
+  const fetchMyHistory = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoadingMyHistory(true);
     try {
       const data = await attendanceAPI.getHistory();
       setMyRecords(data);
     } catch (err) {
       console.error("Failed to load personal history:", err);
     } finally {
-      setIsLoadingMyHistory(false);
+      if (!isSilent) setIsLoadingMyHistory(false);
     }
   }, []);
 
   // Fetch Staff List & Daily Monitor
-  const fetchStaffData = useCallback(async () => {
-    setIsLoadingStaffData(true);
+  const fetchStaffData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoadingStaffData(true);
     try {
       const [staffList, monitor] = await Promise.all([
         adminAPI.listStaff(),
@@ -162,7 +162,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
     } catch (err) {
       console.error("Failed to load staff data:", err);
     } finally {
-      setIsLoadingStaffData(false);
+      if (!isSilent) setIsLoadingStaffData(false);
     }
   }, []);
 
@@ -197,6 +197,32 @@ export const AttendanceHistoryScreen: React.FC = () => {
       fetchMyHistory();
     }
   }, [isAdmin, isSuperAdmin, fetchMyHistory, fetchStaffData]);
+
+  // Real-time automatic background polling & focus refresh (every 20s)
+  useEffect(() => {
+    const refreshLive = () => {
+      if (document.visibilityState === "visible") {
+        if (activeTab === "staff") {
+          fetchStaffData(true);
+          if (expandedStaffId) {
+            fetchIndividualStaffHistory(expandedStaffId, true);
+          }
+        } else {
+          fetchMyHistory(true);
+        }
+      }
+    };
+
+    const interval = setInterval(refreshLive, 20000);
+    window.addEventListener("focus", refreshLive);
+    document.addEventListener("visibilitychange", refreshLive);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", refreshLive);
+      document.removeEventListener("visibilitychange", refreshLive);
+    };
+  }, [activeTab, expandedStaffId, fetchStaffData, fetchMyHistory, fetchIndividualStaffHistory]);
 
   // Handle staff card expand toggle
   const toggleStaffExpand = async (staffId: string) => {

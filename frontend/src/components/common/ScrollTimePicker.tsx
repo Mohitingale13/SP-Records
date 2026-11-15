@@ -38,14 +38,6 @@ export const ScrollTimePicker: React.FC<ScrollTimePickerProps> = ({
     onChange(formatted);
   };
 
-  // Preset bank operational attendance shifts
-  const quickPresets = [
-    { label: isMarathi ? "आगमन ०९:३० AM" : "Morning 09:30 AM", h24: "09:30" },
-    { label: isMarathi ? "जेवण ०१:३० PM" : "Lunch Out 01:30 PM", h24: "13:30" },
-    { label: isMarathi ? "पुन्हा ०२:०० PM" : "Lunch In 02:00 PM", h24: "14:00" },
-    { label: isMarathi ? "निर्गमन ०६:३० PM" : "Office Out 06:30 PM", h24: "18:30" },
-  ];
-
   const hoursList = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   const minutesList = Array.from({ length: 60 }, (_, i) => i);
 
@@ -209,30 +201,6 @@ export const ScrollTimePicker: React.FC<ScrollTimePickerProps> = ({
               PM
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Quick 1-Tap Bank Shift Presets */}
-      <div className="space-y-1 pt-1">
-        <span className="text-[10px] font-bold text-brand-muted block">
-          {isMarathi ? "जलद निवडी (Quick Presets):" : "Quick Shift Presets:"}
-        </span>
-        <div className="grid grid-cols-2 gap-1.5">
-          {quickPresets.map((preset) => (
-            <button
-              key={preset.h24}
-              type="button"
-              onClick={() => onChange(preset.h24)}
-              className={`px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all border text-left flex items-center justify-between ${
-                value === preset.h24
-                  ? "bg-brand-primary text-white border-brand-primary shadow-xs"
-                  : "bg-white/70 text-brand-dark border-brand-primary/20 hover:bg-brand-primary/10"
-              }`}
-            >
-              <span>{preset.label}</span>
-              {value === preset.h24 && <span>✓</span>}
-            </button>
-          ))}
         </div>
       </div>
     </div>

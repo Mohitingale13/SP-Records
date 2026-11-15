@@ -207,15 +207,15 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchMonitor = useCallback(async () => {
-    setIsLoading(true);
+  const fetchMonitor = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const data = await adminAPI.getDailyMonitor(targetDate);
       setMonitorData(data);
     } catch (err) {
       console.error("Failed to load admin monitor data:", err);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, [targetDate]);
 
@@ -253,6 +253,26 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchOfficeLocation();
   }, [fetchOfficeLocation]);
+
+  // Real-time automatic background polling & focus refresh (every 20s)
+  useEffect(() => {
+    const refreshLive = () => {
+      if (document.visibilityState === "visible") {
+        fetchMonitor(true);
+        fetchStaffList();
+      }
+    };
+
+    const interval = setInterval(refreshLive, 20000);
+    window.addEventListener("focus", refreshLive);
+    document.addEventListener("visibilitychange", refreshLive);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", refreshLive);
+      document.removeEventListener("visibilitychange", refreshLive);
+    };
+  }, [fetchMonitor, fetchStaffList]);
 
   const handleUpdateLocation = async (e: React.FormEvent) => {
     e.preventDefault();

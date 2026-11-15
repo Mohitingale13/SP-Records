@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { StatusBadge } from "../../components/common/Badge";
@@ -66,24 +66,42 @@ export const StaffDashboard: React.FC = () => {
     }
   };
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async (isSilent = false) => {
     if (isSuperAdmin) return;
-    setIsLoading(true);
+    if (!isSilent) setIsLoading(true);
     try {
       const data = await attendanceAPI.getTodayStatus();
       setSummary(data);
     } catch (err) {
       console.warn("Failed to load today status (possibly offline):", err);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
-  };
+  }, [isSuperAdmin]);
 
   useEffect(() => {
     if (!isSuperAdmin) {
-      fetchStatus();
+      fetchStatus(false);
     }
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, fetchStatus]);
+
+  // Real-time automatic background polling & focus refresh (every 25s)
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    const poll = () => {
+      if (document.visibilityState === "visible") {
+        fetchStatus(true);
+      }
+    };
+    const interval = setInterval(poll, 25000);
+    window.addEventListener("focus", poll);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", poll);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [isSuperAdmin, fetchStatus]);
 
   // Combine server attendance records and local offline-queued records seamlessly
   const effectiveSummary = useMemo(() => {
@@ -417,7 +435,7 @@ export const StaffDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={fetchStatus}
+          onClick={() => fetchStatus(false)}
           className="p-2 rounded-xl bg-white/50 border border-white/70 hover:bg-white/80 active:scale-95 text-brand-muted hover:text-brand-dark transition-all shadow-sm"
           title="Refresh"
         >

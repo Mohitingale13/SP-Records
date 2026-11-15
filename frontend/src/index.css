@@ -23,12 +23,25 @@ body {
   min-height: 100%;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   user-select: none;
   background-color: #C4F7F2;
   padding-top: 0;
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   overflow-x: hidden;
+}
+
+/* Disables native selection, tap highlight, and callouts during long press */
+.prevent-select {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  -khtml-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 #root {

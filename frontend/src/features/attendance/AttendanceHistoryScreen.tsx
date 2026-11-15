@@ -124,14 +124,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const [resetPinError, setResetPinError] = useState<string | null>(null);
   const [showNewStaffPin, setShowNewStaffPin] = useState(false);
 
-  // Hold for 3s to show staff actions (Reset PIN or Delete Staff)
-  const [holdStaffId, setHoldStaffId] = useState<string | null>(null);
-  const [holdProgress, setHoldProgress] = useState(0);
+  // Hold for 2.5s to show staff actions (Reset PIN or Delete Staff)
   const [staffActionTarget, setStaffActionTarget] = useState<UserSummary | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<UserSummary | null>(null);
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const isLongPressedRef = useRef(false);
 
   // Date-wise collapsible entries
@@ -148,40 +146,53 @@ export const AttendanceHistoryScreen: React.FC = () => {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-    if (holdIntervalRef.current) {
-      clearInterval(holdIntervalRef.current);
-      holdIntervalRef.current = null;
-    }
-    setHoldStaffId(null);
-    setHoldProgress(0);
+    touchStartPosRef.current = null;
   }, []);
 
   const startHold = useCallback(
     (staff: UserSummary) => {
       cancelHold();
       isLongPressedRef.current = false;
-      setHoldStaffId(staff.id);
-      setHoldProgress(0);
 
-      const startTime = Date.now();
-      const duration = 3000;
-
-      holdIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min((elapsed / duration) * 100, 100);
-        setHoldProgress(progress);
-      }, 40);
+      const duration = 2500; // 2.5 seconds exact hold
 
       holdTimerRef.current = setTimeout(() => {
         isLongPressedRef.current = true;
-        cancelHold();
         if (navigator.vibrate) {
           try {
-            navigator.vibrate(60);
+            navigator.vibrate(80);
           } catch {}
         }
         setStaffActionTarget(staff);
+        cancelHold();
       }, duration);
+    },
+    [cancelHold]
+  );
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent, staff: UserSummary) => {
+      // Clear any active native selection immediately
+      if (window.getSelection) {
+        window.getSelection()?.removeAllRanges();
+      }
+      const touch = e.touches[0];
+      touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+      startHold(staff);
+    },
+    [startHold]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStartPosRef.current) return;
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+      // Only cancel if real finger drag/scroll occurs (> 12px)
+      if (dx > 12 || dy > 12) {
+        cancelHold();
+      }
     },
     [cancelHold]
   );
@@ -724,19 +735,9 @@ export const AttendanceHistoryScreen: React.FC = () => {
               return (
                 <GlassCard
                   key={staff.id}
-                  className="!p-3.5 space-y-3 transition-all duration-200 border-white/80 relative overflow-hidden"
+                  className="!p-3.5 space-y-3 transition-all duration-200 border-white/80 relative overflow-hidden prevent-select"
                 >
-                  {/* Visual hold progress indicator bar */}
-                  {holdStaffId === staff.id && holdProgress > 0 && (
-                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-brand-primary/20 z-10">
-                      <div
-                        className="h-full bg-brand-primary transition-all duration-75"
-                        style={{ width: `${holdProgress}%` }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Staff Card Header (Click to expand/collapse, Hold 3s for actions) */}
+                  {/* Staff Card Header (Click to expand/collapse, Hold 2.5s for actions) */}
                   <div
                     onClick={() => {
                       if (isLongPressedRef.current) {
@@ -748,15 +749,23 @@ export const AttendanceHistoryScreen: React.FC = () => {
                     onMouseDown={() => startHold(staff)}
                     onMouseUp={cancelHold}
                     onMouseLeave={cancelHold}
-                    onTouchStart={() => startHold(staff)}
+                    onTouchStart={(e) => handleTouchStart(e, staff)}
+                    onTouchMove={handleTouchMove}
                     onTouchEnd={cancelHold}
                     onTouchCancel={cancelHold}
-                    onTouchMove={cancelHold}
-                    onContextMenu={(e) => e.preventDefault()}
-                    className="flex items-center justify-between cursor-pointer select-none group"
-                    title={isMarathi ? "३ सेकंद दाबून धरा: पिन बदला किंवा कर्मचारी हटवा" : "Hold for 3s to Reset PIN or Delete Staff"}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return false;
+                    }}
+                    style={{
+                      WebkitTouchCallout: "none",
+                      WebkitUserSelect: "none",
+                      userSelect: "none",
+                    }}
+                    className="flex items-center justify-between cursor-pointer select-none group prevent-select"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 pointer-events-none">
                       <div className="w-9 h-9 rounded-xl bg-brand-primary/15 text-brand-dark flex items-center justify-center font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
                         {staff.full_name.charAt(0).toUpperCase()}
                       </div>
@@ -771,18 +780,13 @@ export const AttendanceHistoryScreen: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] text-brand-muted font-medium">
-                            {formatPhone(staff.phone_number)}
-                          </span>
-                          <span className="text-[10px] text-brand-muted/70 italic">
-                            • {isMarathi ? "३ से. धरा" : "3s hold"}
-                          </span>
-                        </div>
+                        <span className="text-[11px] text-brand-muted font-medium">
+                          {formatPhone(staff.phone_number)}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 pointer-events-none">
                       <StatusBadge status={currentStatus} size="sm" />
                       <div
                         className={`p-1 rounded-lg bg-white/50 text-brand-muted group-hover:text-brand-dark transition-transform duration-200 ${
@@ -1285,11 +1289,17 @@ export const AttendanceHistoryScreen: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 4: STAFF ACTION MENU (Triggered by 3s Hold)         */}
+      {/* MODAL 4: STAFF ACTION MENU (Triggered by 2.5s Hold)       */}
       {/* ======================================================== */}
       {staffActionTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
-          <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-sm"
+          onClick={() => setStaffActionTarget(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm relative p-5 bg-white/95 rounded-2xl border border-white shadow-2xl space-y-4"
+          >
             <button
               onClick={() => setStaffActionTarget(null)}
               className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
@@ -1297,22 +1307,24 @@ export const AttendanceHistoryScreen: React.FC = () => {
             >
               <X className="w-4 h-4" />
             </button>
-            <div className="text-center mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-brand-primary/15 text-brand-dark flex items-center justify-center font-bold text-lg mx-auto mb-2">
+            <div className="text-center pt-1 pb-1">
+              <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 text-brand-dark flex items-center justify-center font-bold text-lg mx-auto mb-2 shadow-xs">
                 {staffActionTarget.full_name.charAt(0).toUpperCase()}
               </div>
               <h3 className="text-base font-bold text-brand-dark">
                 {staffActionTarget.full_name}
               </h3>
-              <p className="text-xs text-brand-muted font-medium">
+              <p className="text-xs text-brand-muted font-medium mt-0.5">
                 {formatPhone(staffActionTarget.phone_number)} • {staffActionTarget.role}
               </p>
-              <p className="text-[11px] text-brand-muted/80 mt-1">
-                {isMarathi ? "कृपया खालीलपैकी एक पर्याय निवडा" : "Please select an action to perform"}
+              <p className="text-[11px] text-brand-muted mt-1 font-semibold">
+                {isMarathi ? "कृपया पर्याय निवडा" : "Select an action below"}
               </p>
             </div>
 
-            <div className="space-y-2.5">
+            {/* Two Distinct Cards */}
+            <div className="space-y-3">
+              {/* Card 1: Reset PIN */}
               <button
                 type="button"
                 onClick={() => {
@@ -1324,22 +1336,23 @@ export const AttendanceHistoryScreen: React.FC = () => {
                   setConfirmStaffPin("");
                   setResetPinReason("");
                 }}
-                className="w-full p-3.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-950 font-bold text-xs flex items-center justify-between transition-all group"
+                className="w-full p-4 rounded-xl bg-amber-50 hover:bg-amber-100/70 border border-amber-300 text-amber-950 font-bold text-xs flex items-center justify-between transition-all shadow-xs active:scale-[0.99] group text-left"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-amber-500/20 text-amber-800">
-                    <KeyRound className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
+                    <KeyRound className="w-5 h-5" />
                   </div>
-                  <div className="text-left">
-                    <div className="font-bold">{t.resetPinButton}</div>
-                    <div className="text-[10px] text-amber-800/80 font-normal">
-                      {isMarathi ? "कर्मचाऱ्याचा ६-अंकी लॉगिन पिन बदला" : "Set new 6-digit PIN for staff"}
+                  <div>
+                    <div className="text-sm font-bold text-amber-950">{t.resetPinButton}</div>
+                    <div className="text-[11px] text-amber-800 font-normal mt-0.5">
+                      {isMarathi ? "कर्मचाऱ्याचा ६-अंकी लॉगिन पिन बदला" : "Set new 6-digit login PIN"}
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-amber-700 group-hover:translate-x-0.5 transition-transform" />
+                <ChevronRight className="w-5 h-5 text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </button>
 
+              {/* Card 2: Delete Staff */}
               <button
                 type="button"
                 onClick={() => {
@@ -1347,24 +1360,24 @@ export const AttendanceHistoryScreen: React.FC = () => {
                   setStaffActionTarget(null);
                   setDeletingStaff(target);
                 }}
-                className="w-full p-3.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-900 font-bold text-xs flex items-center justify-between transition-all group"
+                className="w-full p-4 rounded-xl bg-red-50 hover:bg-red-100/70 border border-red-300 text-red-950 font-bold text-xs flex items-center justify-between transition-all shadow-xs active:scale-[0.99] group text-left"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-red-500/20 text-red-700">
-                    <Trash2 className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-700 flex items-center justify-center shrink-0">
+                    <Trash2 className="w-5 h-5" />
                   </div>
-                  <div className="text-left">
-                    <div className="font-bold">{t.deleteStaff}</div>
-                    <div className="text-[10px] text-red-700/80 font-normal">
+                  <div>
+                    <div className="text-sm font-bold text-red-950">{t.deleteStaff}</div>
+                    <div className="text-[11px] text-red-800 font-normal mt-0.5">
                       {isMarathi ? "कर्मचारी व सर्व नोंदी कायमच्या हटवा" : "Permanently remove from database"}
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-red-600 group-hover:translate-x-0.5 transition-transform" />
+                <ChevronRight className="w-5 h-5 text-red-700 shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-brand-dark/10">
+            <div className="pt-2">
               <Button
                 type="button"
                 variant="secondary"
@@ -1374,31 +1387,37 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 {t.cancel}
               </Button>
             </div>
-          </GlassCard>
+          </div>
         </div>
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 5: DELETE STAFF CONFIRMATION                        */}
+      {/* MODAL 5: DELETE STAFF WARNING DIALOGUE                   */}
       {/* ======================================================== */}
       {deletingStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/50 backdrop-blur-sm animate-fadeIn">
-          <GlassCard className="w-full max-w-sm relative !p-6 border-red-500/30 shadow-2xl">
-            <div className="flex items-center gap-3 mb-3 text-red-600">
-              <div className="p-2.5 rounded-full bg-red-500/15">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm"
+          onClick={() => !isDeletingStaff && setDeletingStaff(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm relative p-6 bg-white/95 rounded-2xl border border-red-300 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-2.5 rounded-xl bg-red-500/15 shrink-0">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-brand-dark">
                   {t.deleteStaff}
                 </h3>
-                <span className="text-[11px] font-semibold text-red-600">
-                  {isMarathi ? "कायमस्वरूपी कृती" : "Permanent Action"}
+                <span className="text-[11px] font-bold text-red-600 uppercase tracking-wide">
+                  {isMarathi ? "चेतावणी / कायमस्वरूपी कृती" : "Warning / Permanent Action"}
                 </span>
               </div>
             </div>
 
-            <p className="text-xs text-brand-dark/90 leading-relaxed mb-4">
+            <p className="text-xs text-brand-dark leading-relaxed font-medium">
               {isMarathi
                 ? `तुम्हाला खात्री आहे का? तुम्ही "${deletingStaff.full_name}" (${formatPhone(deletingStaff.phone_number)}) यांचे खाते आणि त्यांच्या सर्व उपस्थिती नोंदी डेटाबेसमधून कायमच्या हटवत आहात. ही कृती पूर्ववत केली जाऊ शकत नाही.`
                 : `Are you sure? You are about to permanently delete "${deletingStaff.full_name}" (${formatPhone(deletingStaff.phone_number)}) and all their attendance records from the database. This action cannot be undone.`}
@@ -1428,7 +1447,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 <span>{isMarathi ? "होय, हटवा" : "Yes, Delete"}</span>
               </button>
             </div>
-          </GlassCard>
+          </div>
         </div>
       )}
     </div>

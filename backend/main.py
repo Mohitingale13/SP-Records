@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Digital Attendance Management System for Shivam Patsanstha",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 
@@ -76,6 +76,6 @@ def health_check():
         "status": "healthy",
         "service": settings.PROJECT_NAME,
         "organization": settings.ORGANIZATION_NAME,
-        "version": "1.0.0",
+        "version": "1.0.1",
     }
 

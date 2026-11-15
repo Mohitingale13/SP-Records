@@ -1,6 +1,6 @@
 # Shivam Patsanstha – Digital Attendance Management System
 
-A production-minded, mobile-first Progressive Web Application (PWA) engineered specifically for **Shivam Patsanstha**. The application automates staff attendance using an official printable permanent QR code standee/poster bound to a 100-meter hardware GPS Geofence and an offline-first auto-sync engine, auto-determining the daily four-step attendance lifecycle (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT`), backed by server-authoritative timestamps in Indian Standard Time (`Asia/Kolkata`).
+A production-ready, mobile-first Progressive Web Application (PWA) engineered specifically for **Shivam Patsanstha**. The application automates staff attendance using an official printable permanent QR code standee/poster bound to a **50-meter hardware GPS Geofence** and an offline-first auto-sync engine, auto-determining the daily four-step attendance lifecycle (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT`), backed by server-authoritative timestamps in Indian Standard Time (`Asia/Kolkata`).
 
 ---
 
@@ -13,18 +13,18 @@ SP-Records/
 │   ├── app/
 │   │   ├── api/v1/             # Endpoints (auth, attendance, qr, admin, reports)
 │   │   ├── assets/fonts/       # Bundled Noto Sans Devanagari TrueType fonts
-│   │   ├── core/               # Config, JWT, HMAC QR security, Timezone (Asia/Kolkata), Security
+│   │   ├── core/               # Config, JWT, HMAC QR security, Timezone (Asia/Kolkata)
 │   │   ├── db/                 # Base model, SQLAlchemy engine & SessionLocal
-│   │   ├── models/             # SQLAlchemy 2.0 ORM models (PEP 563 future annotations)
+│   │   ├── models/             # Lean SQLAlchemy 2.0 ORM models (5 core tables)
 │   │   ├── schemas/            # Pydantic v2 schemas
 │   │   └── services/           # Business logic: State Machine, QR engine, Auth, PDF Reports
-│   ├── tests/                  # Pytest test suite (39 tests passing with 100% success)
+│   ├── tests/                  # Pytest test suite (40 tests passing with 100% success)
 │   ├── requirements.txt        # Python dependencies
-│   └── main.py                 # FastAPI application entrypoint
+│   └── main.py                 # FastAPI application entrypoint with HEAD/GET keep-alive
 ├── frontend/                   # React 19+ TypeScript PWA
 │   ├── public/                 # PWA icons & manifest assets
 │   ├── src/
-│   │   ├── components/         # Glassmorphic UI (GlassCard, Button, Badge, ShivamLogo, SplashScreen)
+│   │   ├── components/         # Glassmorphic UI, ScrollTimePicker, ErrorBoundary, SplashScreen
 │   │   ├── contexts/           # AuthContext, LanguageContext (EN / MR), OfflineContext
 │   │   ├── features/           # Domain modules (auth, attendance, admin)
 │   │   ├── i18n/               # Bilingual dictionary (English & Marathi)
@@ -34,7 +34,7 @@ SP-Records/
 │   ├── package.json
 │   ├── tailwind.config.js
 │   ├── vercel.json             # Vercel deployment configuration
-│   └── vite.config.ts          # Vite configuration with host: 0.0.0.0 and PWA plugin
+│   └── vite.config.ts          # Vite configuration with PWA plugin
 ├── docs/                       # Architecture & technical specifications
 │   ├── architecture.md
 │   ├── database-schema.md
@@ -46,10 +46,10 @@ SP-Records/
 ```
 
 ### Technology Highlights:
-- **Backend**: Python 3.10+, FastAPI, SQLAlchemy 2.x with `from __future__ import annotations`, Alembic, Pydantic v2, ReportLab with embedded Unicode Devanagari TrueType fonts, `python-jose` (HS256 JWT & HMAC QR), native `bcrypt` PIN hashing, PostgreSQL (Neon compatible) / SQLite for local development.
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS with custom glassmorphism, React Router 7, Lucide React icons, `vite-plugin-pwa` (offline service worker + web app manifest), `html5-qrcode` mobile scanner, high-res canvas generator, IndexedDB offline database.
-- **Authentication**: Zero external SMS/OTP dependency. Secure authentication via **Full Name + Phone Number + 6-digit numeric PIN** with bcrypt hashing, progressive lockouts for repeated failed attempts, and administrative PIN reset with mandatory audit reason logging.
-- **Design System**: Frosted glass cards, translucent surfaces (`rgba(255, 255, 255, 0.55)`), soft cyan/turquoise accents (`#00C7C7`, `#36BFCB`), watery blue background (`#B8F2EC` to `#D9FAF5`), dark teal typography (`#153B43`), Devanagari typography support (`Mukta` & `Noto Sans Devanagari`).
+- **Backend**: Python 3.10+, FastAPI, SQLAlchemy 2.x, Alembic, Pydantic v2, ReportLab with embedded Unicode Devanagari TrueType fonts, `python-jose` (HS256 JWT & stateless HMAC QR), native `bcrypt` PIN hashing, PostgreSQL (Neon Cloud Database) / SQLite for local development.
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS with custom glassmorphism, React Router 7, Lucide React icons, `vite-plugin-pwa` (offline service worker + web app manifest), `html5-qrcode` mobile scanner, IndexedDB offline buffer, global `ErrorBoundary` for fault tolerance.
+- **Authentication**: Zero external SMS/OTP gateway dependency. Secure authentication via **Full Name + Mobile Number + 6-digit numeric PIN** with bcrypt hashing, progressive lockouts for repeated failed attempts, and administrative PIN reset with mandatory audit reason logging.
+- **Design System**: Frosted glass cards, translucent surfaces (`rgba(255, 255, 255, 0.55)`), soft cyan/turquoise accents (`#00C7C7`, `#36BFCB`), watery teal background (`#B8F2EC` to `#C4F7F2`), dark teal typography (`#153B43`), Devanagari typography support (`Mukta` & `Noto Sans Devanagari`).
 - **Bilingual**: Seamless English and Marathi (`मराठी`) language toggle with localStorage persistence across all screens.
 
 ---
@@ -67,150 +67,128 @@ The backend autonomously determines and enforces the chronological event sequenc
 - **Composite Uniqueness**: Composite DB constraint `(user_id, event_date, event_type)` guarantees no duplicate scans.
 - **Server-Authoritative Clock**: All timestamps are computed in UTC and formatted for display in `Asia/Kolkata` (`UTC+05:30`).
 
-### B. Official Printable Office QR Poster & 100m GPS Geofence Security
+### B. Official Printable Office QR Poster & 50m GPS Geofence Security
 - **No Kiosk Display Screens Required**: Specially designed for rural cooperative branches. Eliminates the cost, power outages, and maintenance issues of dedicated tablet/kiosk displays.
 - **Printable High-Res Poster**: Super Admin & Admin can download a high-resolution 1500×1500px PNG or an official vector-sharp A4 PDF poster directly from the Admin Panel to print, frame, and paste on the branch counter or entrance wall.
-- **Tamper-Proof Geofencing Anchor**: Even though the printed QR code is static, it cannot be spoofed remotely. The server evaluates the employee's phone GPS coordinates via the Haversine formula against registered office coordinates (`18.1361880, 74.5104810`). An employee attempting to scan a photo of the QR from home is immediately blocked by the 100-meter radius boundary check.
+- **Tamper-Proof Geofencing Anchor**: Even though the printed QR code is permanent, it cannot be spoofed remotely. The server evaluates the employee's phone GPS coordinates via the Haversine formula against registered office coordinates (`18.1361880, 74.5104810`). An employee attempting to scan a photo of the QR from home is immediately blocked by the **50-meter radius boundary check**.
 - **Offline-First Storage & Auto-Sync**: Smartphones retain satellite GPS (GNSS) positioning even without cellular reception or Wi-Fi. In areas with power cuts or spotty 2G/3G signal, attendance records are stored locally in IndexedDB and synchronized automatically in chronological batches (`POST /api/v1/attendance/sync-offline`) when connectivity restores.
 
-### C. Physical Presence Verification & Server-Side GPS Geofencing (Phase 2.3)
+### C. Physical Presence Verification & Server-Side GPS Geofencing
 - **Zero Third-Party Dependency**: Uses browser native HTML5 Geolocation API (`enableHighAccuracy: true`). Zero paid Google Maps or external tracking subscriptions.
 - **Server-Side Final Authority**: Distance is calculated on the backend via the Haversine formula against official registered office coordinates (`18.1361880, 74.5104810`).
-- **100m Permitted Geofence Radius**: Rejects attendance scans submitted outside the 100-meter office perimeter.
-- **Accuracy Thresholds**: $\le 50$m preferred, $\le 100$m accepted, $> 100$m rejected with clear user retry guidance.
+- **50m Permitted Geofence Radius**: Rejects attendance scans submitted outside the 50-meter office perimeter.
+- **Accuracy Thresholds**: $\le 30$m preferred, $\le 50$m accepted, $> 50$m rejected with clear user retry guidance.
 - **Replay Protection**: Rejects coordinates older than 120 seconds.
 - **Privacy Preservation**: Raw employee coordinates are never logged or exposed in staff-facing views. Only the calculated distance (`verified_distance_meters`) and reported accuracy (`reported_accuracy_meters`) are persisted.
 - **Super Admin Dynamic Calibration**: Super Admin can inspect and update office coordinates and geofence radius directly from the Admin Panel with mandatory audit justification.
 - **Audited Manual Exceptions**: Admins can log manual attendance for broken phones, recorded with `verification_method="MANUAL_ADMIN"` and reason logging.
 
-### D. Bilingual PDF Reports (English & Marathi Devanagari)
+### D. Staff Attendance Records & 2.5-Second Hold Menu
+- **Date-wise Collapsible Inspection**: Today's attendance events are expanded and directly visible by default. Past calendar dates render as compact, collapsible summary cards showing date, status badge, and punch count (`4/4`); clicking any past date expands or collapses its punches.
+- **2.5-Second Hold Management Action Menu**: Holding down on any staff member's row for 2.5 seconds pops up a dedicated action menu with two distinct cards:
+  1. **Reset Staff PIN**: Allows assigning a new 6-digit numeric login PIN with mandatory reason logging.
+  2. **Delete Staff Member**: Opens a destructive confirmation warning dialogue to permanently remove mistaken/duplicate staff accounts and cascade-delete their attendance records with an audit log (`STAFF_DELETION`).
+- **Scrolling 12-Hour Time Wheel**: Manual attendance entry and record corrections use an intuitive scrolling 12-hour clock selector (Hours `1-12`, Minutes `00-59`, `AM/PM`).
+
+### E. Bilingual PDF Reports (English & Marathi Devanagari)
 - **Weekly & Monthly Attendance PDF Reports**: Generated on-demand via ReportLab.
 - **Devanagari Font Rendering**: Bundles `NotoSansDevanagari-Regular.ttf` and `NotoSansDevanagari-Bold.ttf` for pristine Marathi script rendering.
 - **Role Guard**: Restricted to `ADMIN` and `SUPER_ADMIN`; regular staff accessing the PDF endpoints are rejected with HTTP 403 Forbidden.
 
-### D. Role-Based Access Control (RBAC) & PIN Security
-- **Staff Member**: Registers with Name, Phone, and 6-digit PIN; views today's status, scans QR, inspects personal history.
-- **Organization Admin**: Live real-time dashboard of all staff (Present, On Break, Completed, Not Started); manual corrections with mandatory audit log justification; employee PIN reset.
-- **Super Admin**: Securely bootstrapped via environment token; elevates or revokes Admin roles with confirmation dialog.
+---
+
+## 3. Database Schema Overview (Neon Cloud PostgreSQL)
+
+The database consists of **5 lean, normalized core tables** (plus Alembic's migration tracker):
+
+| Table Name | Description |
+| :--- | :--- |
+| **`organizations`** | Institution identity (`Shivam Patsanstha`), office coordinates (`18.1361880, 74.5104810`), 50m geofence radius. |
+| **`roles`** | `SUPER_ADMIN`, `ADMIN`, `STAFF`. |
+| **`users`** | Staff accounts, E.164 phone numbers, bcrypt-hashed 6-digit PINs, account lockout status. |
+| **`attendance_records`** | Daily events (`OFFICE_IN`, `LUNCH_BREAK_OUT`, `LUNCH_BREAK_IN`, `OFFICE_OUT`), IST timestamps, verified distance. |
+| **`attendance_audit_logs`** | Complete audit trail for manual corrections, time adjustments, PIN resets, and staff deletions. |
+| **`alembic_version`** | Database schema version tracking. |
+
+*QR verification is 100% stateless (cryptographic HMAC-SHA256 signature + 50m GPS geofencing), eliminating unnecessary database write locks.*
 
 ---
 
-## 3. Local Development & LAN Mobile Testing Setup
+## 4. Production Deployment Setup
 
-### Step 1: Start Backend on All Network Interfaces
-Open a PowerShell terminal:
+The application is deployed on high-availability free tiers:
+
+```
+[Staff / Admin Devices]
+        │
+        ├─── Static Assets (PWA) ───► Vercel (Edge CDN, Instant Load)
+        │
+        └─── REST API & Auth    ───► Render (Python FastAPI Backend)
+                                           │
+                                           └───► Neon (Serverless PostgreSQL)
+```
+
+### Keeping Render Backend Awake 24/7 (UptimeRobot)
+Render's free tier spins down web services after 15 minutes of inactivity. To keep it awake 24/7 with zero cold starts:
+1. Create a free account at [UptimeRobot](https://uptimerobot.com/).
+2. Add a new monitor:
+   - **Monitor Type**: `HTTP(s)`
+   - **URL**: `https://<YOUR-RENDER-BACKEND-URL>/health`
+   - **HTTP Method**: `HEAD` or `GET` (Both return `200 OK`)
+   - **Monitoring Interval**: `5 minutes` or `10 minutes`
+3. The `/health` endpoint responds directly from memory without querying the database, keeping Render warm while allowing Neon Postgres to sleep at night (conserving Neon compute hours).
+
+---
+
+## 5. Local Development & Testing
+
+### Step 1: Start Backend
 ```powershell
-cd "c:\Users\Mohit\Desktop\SP Records\backend"
+cd "backend"
 .\venv\Scripts\Activate.ps1
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
-API interactive documentation: `http://localhost:8000/docs`
+Interactive Swagger API documentation: `http://localhost:8000/docs`
 
-### Step 2: Start Frontend on All Network Interfaces
-Open a second PowerShell terminal:
+### Step 2: Start Frontend
 ```powershell
-cd "c:\Users\Mohit\Desktop\SP Records\frontend"
+cd "frontend"
 npm run dev
 ```
 Local access: `http://localhost:5173`
 
-### Step 3: Access from Actual Mobile Phone on the Same Wi-Fi
-Find your computer's LAN IP address:
+### Step 3: Run Backend Test Suite (40/40 Tests Passing)
 ```powershell
-Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notlike "169.254*" } | Select-Object IPAddress, InterfaceAlias
-```
-*(On this machine, the LAN IP is **`10.138.97.213`**)*
-
-1. Ensure your mobile phone is connected to the **same Wi-Fi network**.
-2. Open your mobile browser (Chrome/Safari) and navigate to:
-   ```
-   http://10.138.97.213:5173
-   ```
-3. The frontend automatically connects to the backend at `http://10.138.97.213:8000/api/v1` via dynamic hostname detection.
-
-### Step 4: Windows Firewall Configuration (If Connection Times Out)
-If your phone cannot load the page, run this command in **PowerShell as Administrator**:
-```powershell
-New-NetFirewallRule -DisplayName "Shivam Attendance Vite (5173)" -Direction Inbound -LocalPort 5173 -Protocol TCP -Action Allow
-New-NetFirewallRule -DisplayName "Shivam Attendance FastAPI (8000)" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
-```
-
-### Step 5: Mobile Camera Access & HTTPS Requirements
-Mobile web browsers (iOS Safari and Android Chrome) **restrict camera access (`getUserMedia`) to Secure Contexts (`https://` or `localhost`)**.
-- When testing on a physical phone over plain `http://10.138.97.213:5173`, staff registration, PIN login, dashboards, reports, and GPS check-ins work completely.
-- To test the **live phone camera** against the printed QR poster:
-  - **Option A (Cloudflare Tunnel - Recommended & Free)**:
-    ```bash
-    npx cloudflared tunnel --url http://localhost:5173
-    ```
-    Open the generated `https://xxxx.trycloudflare.com` link on your phone.
-  - **Option B (Ngrok)**:
-    ```bash
-    ngrok http 5173
-    ```
-  - **Option C (Direct Physical GPS Check-In / Offline Fallback)**:
-    Tap "Physical GPS Check-In (No Screen Needed)" directly in the scanner modal on your phone to register attendance with verified hardware GPS location.
-
----
-
-## 4. Running the Automated Test Suite
-
-All 21 backend tests validate PIN authentication, rate limiting, the attendance state machine, QR cryptographic integrity, admin audit logging, PDF report generation, and role management.
-
-```powershell
-cd "c:\Users\Mohit\Desktop\SP Records\backend"
+cd "backend"
 $env:PYTHONPATH="."
-.\venv\Scripts\pytest.exe tests -v
+.\venv\Scripts\pytest.exe -v
 ```
 
-### Test Coverage Summary (39 Tests Passing):
-- **Admin & Audit Trails (`test_admin_audit.py`)**: Manual attendance addition, corrections with immutable audit log, and daily monitor verification.
-- **Attendance State Machine (`test_attendance_state_machine.py`)**: 4-step sequence (`OFFICE_IN` → `LUNCH_BREAK_OUT` → `LUNCH_BREAK_IN` → `OFFICE_OUT` → terminal completion).
-- **Authentication & RBAC (`test_auth.py`)**: PIN hashing, login lockouts, admin PIN reset with justification, Super Admin bootstrap, JWT resolution.
-- **Geofence Security (`test_geofence_security.py`)**: Haversine distance calculations, 100m geofence enforcement, accuracy thresholds, location timestamp freshness, Super Admin location calibration.
-- **Offline Sync Engine (`test_offline_sync.py`)**: Local IndexedDB sync ingestion, chronological replay, outside-geofence rejection, poor accuracy rejection, idempotent deduplication.
-- **QR Security (`test_qr_security.py`)**: Multi-user shared office QR scans, tampered signature rejections, cross-organization code rejections, debounce protection.
-- **PDF Reports & Permissions (`test_reports_and_roles.py`)**: ReportLab English & Marathi Devanagari reports, monthly summaries, RBAC role guard enforcement.
-- **Static Office QR Poster (`test_static_qr.py`)**: Static QR configuration endpoints, 100m geofence validation, vector A4 PDF poster generation.
-
-Frontend test suite (`vitest`):
+### Step 4: Run Frontend Test Suite
 ```powershell
-cd "c:\Users\Mohit\Desktop\SP Records\frontend"
+cd "frontend"
 npm test -- --run
 ```
 
-Frontend production build (`tsc` & `vite`):
+### Step 5: Production Build Verification
 ```powershell
+cd "frontend"
 npm run build
 ```
 
 ---
 
-## 5. Deployment Guide
+## 6. Security Architecture & Threat Model
 
-### Backend: Render
-1. Connect repository to [Render](https://render.com).
-2. Render detects `render.yaml` automatically.
-3. Configure environment variables in the Render dashboard:
-   - `DATABASE_URL`: Connection string to PostgreSQL (e.g. Neon).
-   - `SUPER_ADMIN_BOOTSTRAP_TOKEN`: Private token for initial Super Admin setup.
-   - `CORS_ORIGINS`: Your Vercel frontend URL.
-
-### Frontend: Vercel
-1. Connect repository to [Vercel](https://vercel.com).
-2. Set Root Directory to `frontend` or use root configuration (configured via `vercel.json`).
-3. Set Environment Variable:
-   - `VITE_API_URL`: Your Render backend API URL (e.g., `https://shivam-attendance-backend.onrender.com/api/v1`).
+| Threat | Attack Vector | System Defense |
+| :--- | :--- | :--- |
+| **Remote Proxy Attendance** | Employee photographs office QR poster and shares it with absent colleagues via WhatsApp. | **Server-Side GPS Geofence (50m)**: Device GPS coordinates are calculated on the backend via the Haversine formula against office coordinates (`18.1361880, 74.5104810`). An absent employee at home scanning the photo is immediately rejected. |
+| **GPS Spoofing / Mock Location** | User uses mock GPS developer apps to spoof coordinates. | **Hardware GNSS Validation & Freshness**: Coordinates require high accuracy ($\le 50$m, preferred $\le 30$m) and timestamps $\le 120$s old. |
+| **Rapid Duplicate Scans** | Staff member repeatedly taps or scans within seconds. | **Debounce Window**: Configurable minimum spacing (10s) enforced by server state machine. |
+| **Token Forgery** | Attacker crafts a fake QR code. | **HMAC-SHA256 Cryptographic Signature & Org Scoping**: QR token encodes signed organization identifier and is validated against `QR_SIGNING_SECRET`. |
+| **Rural Power / Network Cut** | Mobile data or Wi-Fi is unavailable at the branch. | **Offline IndexedDB Storage**: Smartphone GNSS satellites work without cellular data; check-ins are buffered in local IndexedDB and auto-synced upon reconnect (`POST /api/v1/attendance/sync-offline`). |
+| **Brute-Force PIN Attack** | Attacker guesses 6-digit staff PIN. | **Progressive Delays & Account Lockout**: Lockout after 5 consecutive failed attempts; bcrypt-hashed passwords. |
 
 ---
 
-## 6. Architecture & Implementation Documentation
-
-Detailed documentation is available in the `docs/` directory:
-- [Architecture Specification](docs/architecture.md): System components, dataflow, security, and API endpoints.
-- [Database Schema Design](docs/database-schema.md): Complete normalized PostgreSQL schema and constraints.
-- [Attendance Workflow & State Machine](docs/attendance-workflow.md): Four-step lifecycle and chronological state rules.
-- [QR Cryptographic Security](docs/qr-security.md): Official printed QR poster & 100m GPS geofencing specification.
-
----
 *Shivam Patsanstha Digital Attendance System – Production PWA Ready.*

@@ -1,7 +1,7 @@
 # Shivam Patsanstha – Database Schema Design
 
 ## 1. Overview
-The database uses a normalized PostgreSQL schema designed for high data integrity, strict auditability, and zero ambiguity regarding attendance states.
+The database uses a lean, normalized PostgreSQL schema designed for high data integrity, strict auditability, and zero ambiguity regarding attendance states.
 
 All timestamps are stored in UTC (`TIMESTAMP WITH TIME ZONE`). Calendar dates for attendance days are normalized to the `Asia/Kolkata` timezone (`UTC+05:30`) to accurately reflect business working dates regardless of the UTC rollover.
 
@@ -17,8 +17,6 @@ erDiagram
     USERS ||--o{ ATTENDANCE_RECORDS : "records"
     USERS ||--o{ ATTENDANCE_AUDIT_LOGS : "acts as auditor"
     ATTENDANCE_RECORDS ||--o{ ATTENDANCE_AUDIT_LOGS : "is audited by"
-    USERS ||--o{ QR_SCAN_TRACKS : "submits"
-    QR_TOKENS ||--o{ QR_SCAN_TRACKS : "redeemed in"
 
     ORGANIZATIONS {
         uuid id PK
@@ -79,24 +77,6 @@ erDiagram
         jsonb new_state
         timestamptz created_at
     }
-
-    QR_TOKENS {
-        uuid id PK
-        varchar nonce UK
-        uuid organization_id FK
-        uuid created_by_user_id FK
-        timestamptz issued_at
-        timestamptz expires_at
-        boolean is_revoked
-    }
-
-    QR_SCAN_TRACKS {
-        uuid id PK
-        varchar qr_nonce FK
-        uuid user_id FK
-        varchar event_type
-        timestamptz scanned_at
-    }
 ```
 
 ---
@@ -112,7 +92,7 @@ Represents the operating cooperative banking society entity (Shivam Patsanstha) 
 | `code` | `VARCHAR(50)` | NOT NULL, UNIQUE | Organization code identifier ("SHIVAM_PAT") |
 | `office_latitude` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `18.1361880` | Official registered office latitude |
 | `office_longitude` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `74.5104810` | Official registered office longitude |
-| `geofence_radius_meters` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `100.0` | Permitted attendance radius in meters |
+| `geofence_radius_meters` | `DOUBLE PRECISION` | NULLABLE, DEFAULT `50.0` | Permitted attendance radius in meters (50m) |
 | `is_active` | `BOOLEAN` | NOT NULL, DEFAULT true | Status flag |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Update timestamp |
@@ -178,40 +158,22 @@ Stores immutable timestamps and physical verification metadata for the daily fou
 ---
 
 ### 3.5 `attendance_audit_logs`
-Tracks any administrative manual additions or modifications with mandatory reason logging.
+Tracks any administrative manual additions, modifications, staff PIN resets, or staff deletions with mandatory reason logging.
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | Primary Key, default `gen_random_uuid()` | Audit identifier |
-| `attendance_record_id` | `UUID` | Foreign Key (`attendance_records.id`), NULLABLE | Linked record |
-| `actor_user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Admin who made the change |
-| `action` | `VARCHAR(50)` | NOT NULL | `MANUAL_ADDITION`, `CORRECTION`, `INVALIDATION` |
+| `attendance_record_id` | `UUID` | Foreign Key (`attendance_records.id`), NULLABLE | Linked record (NULL for staff-level actions) |
+| `actor_user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Admin who performed the action |
+| `action` | `VARCHAR(50)` | NOT NULL | `MANUAL_ADDITION`, `CORRECTION`, `INVALIDATION`, `PIN_RESET`, `STAFF_DELETION` |
 | `reason` | `TEXT` | NOT NULL | Mandatory explanation entered by admin |
 | `previous_state` | `JSONB` | NULLABLE | Snapshot before modification |
-| `new_state` | `JSONB` | NOT NULL | Snapshot after modification |
+| `new_state` | `JSONB` | NULLABLE | Snapshot after modification |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Timestamp of audit entry |
 
 ---
 
-### 3.6 `qr_tokens` & `qr_scan_tracks`
-Token tracking and concurrency validation for attendance QR codes.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `UUID` | Primary Key | Token entry ID |
-| `nonce` | `VARCHAR(100)` | NOT NULL, UNIQUE, Indexed | Unique cryptographically generated nonce / jti |
-| `organization_id` | `UUID` | Foreign Key (`organizations.id`), NOT NULL | Organization scope |
-| `created_by_user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Admin issuer user |
-| `issued_at` | `TIMESTAMPTZ` | NOT NULL | Token creation time |
-| `expires_at` | `TIMESTAMPTZ` | NOT NULL | Token expiration time |
-| `is_revoked` | `BOOLEAN` | NOT NULL, DEFAULT false | Administrative revocation |
-
-`qr_scan_tracks`:
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `UUID` | Primary Key | Tracking ID |
-| `qr_nonce` | `VARCHAR(100)` | NOT NULL, Indexed | Nonce reference |
-| `user_id` | `UUID` | Foreign Key (`users.id`), NOT NULL | Staff who redeemed it |
-| `event_type` | `VARCHAR(30)` | NOT NULL | Attendance event triggered |
-| `scanned_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `NOW()` | Scan time |
-
-**Constraint**:
-- `uq_qr_user_scan` ON (`qr_nonce`, `user_id`) ensures a staff member cannot replay the exact same QR scan twice, while allowing colleagues to scan the shared office QR poster throughout the day.
+### 3.6 QR Verification Architecture (Stateless HMAC + GPS)
+Attendance QR verification is **100% stateless** on the server:
+- The Official Printed Poster encodes a cryptographically signed HMAC-SHA256 JWT bound to the organization code.
+- Validation is performed in-memory via `QR_SIGNING_SECRET` and anchored to the **50-meter hardware GPS Geofence**.
+- No database tokens or scan tables are required, keeping the database minimal and fast.

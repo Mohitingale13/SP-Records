@@ -6,7 +6,7 @@ In rural cooperative societies (Pat Sansthas), relying on dedicated tablets or d
 - **Power Cuts & Load Shedding**: Rural electricity cuts can take kiosk screens offline during morning check-in rushes.
 - **Counter Congestion**: Staff line up in front of a single monitor to mark attendance.
 
-To solve this while retaining 100% cryptographic security, the system combines an **Official Printable Static QR Poster** with **Server-Side GPS Geofencing (100m)** and an **Offline-First Synchronization Engine**.
+To solve this while retaining 100% cryptographic security, the system combines an **Official Printable Static QR Poster** with **Server-Side GPS Geofencing (50m)** and an **Offline-First Synchronization Engine**.
 
 ---
 
@@ -14,7 +14,7 @@ To solve this while retaining 100% cryptographic security, the system combines a
 
 | Threat | Attack Vector | System Defense |
 | :--- | :--- | :--- |
-| **Remote Proxy Attendance** | Employee photographs office QR sticker and shares it with absent colleagues via WhatsApp. | **Server-Side GPS Geofence (100m)**: Device GPS coordinates are calculated on the backend via the Haversine formula against office coordinates (`18.1361880, 74.5104810`). An absent employee at home scanning the photo is immediately rejected. |
+| **Remote Proxy Attendance** | Employee photographs office QR sticker and shares it with absent colleagues via WhatsApp. | **Server-Side GPS Geofence (50m)**: Device GPS coordinates are calculated on the backend via the Haversine formula against office coordinates (`18.1361880, 74.5104810`). An absent employee at home scanning the photo is immediately rejected. |
 | **GPS Spoofing / Mock Location** | User uses mock GPS developer apps to spoof coordinates. | **Hardware GNSS Validation & Freshness**: Coordinates require high accuracy ($\le 100$m, preferred $\le 50$m) and timestamps $\le 120$s old. |
 | **Rapid Duplicate Scans** | Staff member repeatedly taps or scans within seconds. | **Debounce Window**: Configurable minimum spacing (10–15s) enforced by server state machine. |
 | **Token Forgery** | Attacker crafts a fake QR code. | **HMAC-SHA256 Cryptographic Signature & Org Scoping**: QR token encodes signed organization identifier and is validated against the server key. |
@@ -58,7 +58,7 @@ Admins can download:
 - **Official Registered Office**: Shivam Patsanstha, Phaltan
 - **Latitude**: `18.1361880`
 - **Longitude**: `74.5104810`
-- **Permitted Geofence Radius**: `100.0` meters
+- **Permitted Geofence Radius**: `50.0` meters
 - **Preferred GPS Accuracy**: $\le 50.0$ meters
 - **Maximum Acceptable Accuracy**: $\le 100.0$ meters (scans with accuracy $>100$m are rejected with clear user retry guidance)
 - **Location Timestamp Freshness**: $\le 120$ seconds (prevents coordinate replay attacks)

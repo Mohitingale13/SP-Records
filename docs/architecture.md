@@ -31,7 +31,7 @@ flowchart TD
         API["REST API Router (/api/v1)"]
         AUTH["Auth & Role Guard (JWT / PIN)"]
         ASM["Attendance State Machine"]
-        GEO["100m GPS Geofence Validator (Haversine)"]
+        GEO["50m GPS Geofence Validator (Haversine)"]
         QRS["QR Cryptographic Engine (HMAC-SHA256)"]
         SYNC["Offline Batch Sync Ingestion"]
     end

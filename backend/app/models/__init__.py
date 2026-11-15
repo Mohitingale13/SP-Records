@@ -4,7 +4,6 @@ from app.models.role import Role, RoleName
 from app.models.user import User
 from app.models.attendance import AttendanceRecord, AttendanceEventType
 from app.models.audit import AttendanceAuditLog, AuditAction
-from app.models.qr import QRCodeToken, QRCodeScanTrack
 
 __all__ = [
     "Base",
@@ -16,6 +15,4 @@ __all__ = [
     "AttendanceEventType",
     "AttendanceAuditLog",
     "AuditAction",
-    "QRCodeToken",
-    "QRCodeScanTrack",
 ]

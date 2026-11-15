@@ -73,6 +73,13 @@ export const AttendanceHistoryScreen: React.FC = () => {
     return "09:30";
   };
 
+  const getStaffRoleName = (r: any): string => {
+    if (!r) return "STAFF";
+    if (typeof r === "object" && r?.name) return String(r.name);
+    if (typeof r === "string") return String(r);
+    return "STAFF";
+  };
+
   // View Mode: 'my' for personal records, 'staff' for staff attendance records
   const [activeTab, setActiveTab] = useState<"my" | "staff">(() => {
     return isSuperAdmin ? "staff" : "my";
@@ -352,8 +359,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const filteredStaffList = useMemo(() => {
     return allStaffList.filter((staff) => {
       // Exclude Super Admin completely from attendance roster
-      const r = staff.role as any;
-      const roleName = (typeof r === "object" && r?.name) ? r.name : (r || "");
+      const roleName = getStaffRoleName(staff.role);
       if (roleName === "SUPER_ADMIN") return false;
 
       const matchesSearch =
@@ -774,7 +780,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
                           <h4 className="text-xs sm:text-sm font-bold text-brand-dark truncate">
                             {staff.full_name}
                           </h4>
-                          {staff.role === "ADMIN" && (
+                          {getStaffRoleName(staff.role) === "ADMIN" && (
                             <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-teal-500/20 text-teal-800 border border-teal-500/30">
                               ADMIN
                             </span>
@@ -1309,14 +1315,21 @@ export const AttendanceHistoryScreen: React.FC = () => {
             </button>
             <div className="text-center pt-1 pb-1">
               <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 text-brand-dark flex items-center justify-center font-bold text-lg mx-auto mb-2 shadow-xs">
-                {staffActionTarget.full_name.charAt(0).toUpperCase()}
+                {(staffActionTarget.full_name?.charAt(0) || "S").toUpperCase()}
               </div>
               <h3 className="text-base font-bold text-brand-dark">
                 {staffActionTarget.full_name}
               </h3>
-              <p className="text-xs text-brand-muted font-medium mt-0.5">
-                {formatPhone(staffActionTarget.phone_number)} • {staffActionTarget.role}
-              </p>
+              <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                <span className="text-xs text-brand-muted font-medium">
+                  {formatPhone(staffActionTarget.phone_number)}
+                </span>
+                {getStaffRoleName(staffActionTarget.role) === "ADMIN" && (
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-teal-500/20 text-teal-800 border border-teal-500/30">
+                    ADMIN
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-brand-muted mt-1 font-semibold">
                 {isMarathi ? "कृपया पर्याय निवडा" : "Select an action below"}
               </p>

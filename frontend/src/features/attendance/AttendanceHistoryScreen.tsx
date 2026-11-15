@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { StatusBadge } from "../../components/common/Badge";
+import { ScrollTimePicker } from "../../components/common/ScrollTimePicker";
 import { IOSSegmentedSwitch, type SegmentOption } from "../../components/common/IOSSegmentedSwitch";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -41,6 +42,34 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const navigate = useNavigate();
 
   const formatPhone = (phone?: string) => (phone || "").replace(/^\+91/, "");
+
+  const parseIstTimeTo24h = (scannedAtIst?: string, scannedAtUtc?: string): string => {
+    if (scannedAtIst) {
+      const match = scannedAtIst.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2];
+        const meridiem = match[3].toUpperCase();
+        if (meridiem === "PM" && hours < 12) hours += 12;
+        if (meridiem === "AM" && hours === 12) hours = 0;
+        return `${String(hours).padStart(2, "0")}:${minutes}`;
+      }
+    }
+    if (scannedAtUtc) {
+      try {
+        const d = new Date(scannedAtUtc);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleTimeString("en-GB", {
+            timeZone: "Asia/Kolkata",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+        }
+      } catch {}
+    }
+    return "09:30";
+  };
 
   // View Mode: 'my' for personal records, 'staff' for staff attendance records
   const [activeTab, setActiveTab] = useState<"my" | "staff">(() => {
@@ -260,7 +289,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
 
     setIsSubmittingManual(true);
     try {
-      const timestampIso = `${manualDate}T${manualTime}:00Z`;
+      const timestampIso = `${manualDate}T${manualTime}:00+05:30`;
       await adminAPI.manualAdd({
         user_id: manualAddStaff.id,
         event_type: manualEventType,
@@ -298,7 +327,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
     setIsSubmittingCorrection(true);
     try {
       const eventDate = correctingEvent.event.event_date;
-      const timestampIso = `${eventDate}T${correctionTime}:00Z`;
+      const timestampIso = `${eventDate}T${correctionTime}:00+05:30`;
 
       await adminAPI.correct({
         record_id: correctingEvent.event.id,
@@ -774,10 +803,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                           e.stopPropagation();
                                           setCorrectingEvent({ staff, event: evt });
                                           setCorrectionEventType(evt.event_type);
-                                          const timeMatch = evt.scanned_at
-                                            ? evt.scanned_at.match(/T(\d{2}:\d{2})/)
-                                            : null;
-                                          setCorrectionTime(timeMatch ? timeMatch[1] : "09:30");
+                                          setCorrectionTime(parseIstTimeTo24h(evt.scanned_at_ist, evt.scanned_at));
                                           setCorrectionReason("");
                                           setCorrectionError(null);
                                         }}
@@ -859,18 +885,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1">
-                  {isMarathi ? "वेळ (HH:MM)" : "Time (HH:MM)"}
-                </label>
-                <input
-                  type="time"
-                  value={manualTime}
-                  onChange={(e) => setManualTime(e.target.value)}
-                  className="glass-input text-xs font-medium"
-                  required
-                />
-              </div>
+              <ScrollTimePicker
+                value={manualTime}
+                onChange={setManualTime}
+                label={isMarathi ? "उपस्थिती वेळ निवडा (घड्याळ)" : "Select Attendance Time"}
+                isMarathi={isMarathi}
+              />
 
               <div>
                 <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
@@ -956,18 +976,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1">
-                  {t.newTime}
-                </label>
-                <input
-                  type="time"
-                  value={correctionTime}
-                  onChange={(e) => setCorrectionTime(e.target.value)}
-                  className="glass-input text-xs font-medium"
-                  required
-                />
-              </div>
+              <ScrollTimePicker
+                value={correctionTime}
+                onChange={setCorrectionTime}
+                label={isMarathi ? "दुरुस्त वेळ निवडा (घड्याळ)" : "Select Corrected Time"}
+                isMarathi={isMarathi}
+              />
 
               <div>
                 <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">

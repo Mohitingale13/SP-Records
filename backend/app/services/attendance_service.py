@@ -238,6 +238,10 @@ class AttendanceService:
         if existing:
             return None, f"An attendance event of type '{event_type.value}' already exists for this date."
 
+        # Defensive timezone normalization: if naive, treat as Kolkata time (IST)
+        if scanned_at.tzinfo is None:
+            scanned_at = scanned_at.replace(tzinfo=KOLKATA_TZ)
+
         new_record = AttendanceRecord(
             user_id=target_user_id,
             organization_id=target_user.organization_id,
@@ -316,6 +320,9 @@ class AttendanceService:
                 record.event_type = new_event_type.value
 
         if new_scanned_at:
+            # Defensive timezone normalization: if naive, treat as Kolkata time (IST)
+            if new_scanned_at.tzinfo is None:
+                new_scanned_at = new_scanned_at.replace(tzinfo=KOLKATA_TZ)
             record.scanned_at = new_scanned_at
 
         record.is_manually_corrected = True

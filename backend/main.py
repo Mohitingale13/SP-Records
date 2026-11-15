@@ -70,12 +70,20 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
-@app.get("/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
 def health_check():
     return {
         "status": "healthy",
         "service": settings.PROJECT_NAME,
         "organization": settings.ORGANIZATION_NAME,
         "version": "1.0.1",
+    }
+
+
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+def root_ping():
+    return {
+        "status": "ok",
+        "service": settings.PROJECT_NAME,
     }
 

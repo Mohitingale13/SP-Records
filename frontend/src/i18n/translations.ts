@@ -169,6 +169,11 @@ export interface Translations {
   myAttendanceTab: string;
   staffRecordsTab: string;
   staffAttendanceRosterTitle: string;
+  deleteStaff: string;
+  deleteStaffConfirm: string;
+  deleteStaffSuccess: string;
+  holdMenuTitle: string;
+  holdMenuHint: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -341,6 +346,11 @@ export const translations: Record<Language, Translations> = {
     myAttendanceTab: "My Attendance",
     staffRecordsTab: "Staff Records",
     staffAttendanceRosterTitle: "Staff Attendance Records",
+    deleteStaff: "Delete Staff Member",
+    deleteStaffConfirm: "Are you sure you want to permanently delete this staff member from the database?",
+    deleteStaffSuccess: "Staff member permanently deleted from database.",
+    holdMenuTitle: "Staff Actions Menu",
+    holdMenuHint: "Hold for 3s to manage PIN or Delete",
   },
   mr: {
     appName: "शिवम पतसंस्था",
@@ -511,5 +521,10 @@ export const translations: Record<Language, Translations> = {
     myAttendanceTab: "माझी उपस्थिती",
     staffRecordsTab: "कर्मचारी नोंदी",
     staffAttendanceRosterTitle: "कर्मचारी उपस्थिती नोंदी",
+    deleteStaff: "कर्मचारी खाते हटवा",
+    deleteStaffConfirm: "तुम्ही या कर्मचाऱ्याचे खाते कायमस्वरूपी डेटाबेसमधून हटवू इच्छिता का?",
+    deleteStaffSuccess: "कर्मचारी खाते डेटाबेसमधून हटवले गेले.",
+    holdMenuTitle: "कर्मचारी व्यवस्थापन पर्याय",
+    holdMenuHint: "पिन रीसेट किंवा हटवण्यासाठी ३ सेकंद दाबून धरा",
   },
 };

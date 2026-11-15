@@ -329,6 +329,50 @@ def admin_reset_pin(
     return user
 
 
+@router.delete("/users/{user_id}", summary="Admin deletion of staff member from database")
+def delete_staff_user(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    target_user = (
+        db.query(User)
+        .filter(User.id == user_id, User.organization_id == current_admin.organization_id)
+        .first()
+    )
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found.")
+
+    if target_user.id == current_admin.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account.")
+
+    if target_user.role and target_user.role.name == RoleName.SUPER_ADMIN.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super Administrator account cannot be deleted.")
+
+    if current_admin.role.name != RoleName.SUPER_ADMIN.value and target_user.role.name == RoleName.ADMIN.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Super Admin can delete an Administrator.")
+
+    # Record audit log before deletion
+    audit_log = AttendanceAuditLog(
+        attendance_record_id=None,
+        actor_user_id=current_admin.id,
+        action="STAFF_DELETION",
+        reason=f"Admin {current_admin.full_name} permanently deleted staff account {target_user.full_name} ({target_user.phone_number}).",
+        previous_state={
+            "id": str(target_user.id),
+            "full_name": target_user.full_name,
+            "phone_number": target_user.phone_number,
+            "role": target_user.role.name if target_user.role else "STAFF",
+        },
+        new_state=None,
+    )
+    db.add(audit_log)
+    db.delete(target_user)
+    db.commit()
+
+    return {"message": f"Staff member '{target_user.full_name}' permanently deleted."}
+
+
 @router.get("/reports/weekly.pdf", summary="Download weekly attendance PDF report")
 def download_weekly_report(
     start_date: Optional[date] = Query(None, description="Any date in the target week"),

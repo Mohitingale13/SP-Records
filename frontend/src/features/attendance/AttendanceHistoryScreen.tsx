@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
 import { StatusBadge } from "../../components/common/Badge";
@@ -24,10 +24,12 @@ import {
   User,
   Search,
   ChevronDown,
+  ChevronRight,
   MapPin,
   Edit2,
   PlusCircle,
   KeyRound,
+  Trash2,
   X,
   AlertTriangle,
   Eye,
@@ -121,6 +123,68 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const [isSubmittingResetPin, setIsSubmittingResetPin] = useState(false);
   const [resetPinError, setResetPinError] = useState<string | null>(null);
   const [showNewStaffPin, setShowNewStaffPin] = useState(false);
+
+  // Hold for 3s to show staff actions (Reset PIN or Delete Staff)
+  const [holdStaffId, setHoldStaffId] = useState<string | null>(null);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [staffActionTarget, setStaffActionTarget] = useState<UserSummary | null>(null);
+  const [deletingStaff, setDeletingStaff] = useState<UserSummary | null>(null);
+  const [isDeletingStaff, setIsDeletingStaff] = useState(false);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressedRef = useRef(false);
+
+  // Date-wise collapsible entries
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  const toggleDateExpand = (staffId: string, dateStr: string) => {
+    const key = `${staffId}_${dateStr}`;
+    setExpandedDates((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const cancelHold = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+    setHoldStaffId(null);
+    setHoldProgress(0);
+  }, []);
+
+  const startHold = useCallback(
+    (staff: UserSummary) => {
+      cancelHold();
+      isLongPressedRef.current = false;
+      setHoldStaffId(staff.id);
+      setHoldProgress(0);
+
+      const startTime = Date.now();
+      const duration = 3000;
+
+      holdIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / duration) * 100, 100);
+        setHoldProgress(progress);
+      }, 40);
+
+      holdTimerRef.current = setTimeout(() => {
+        isLongPressedRef.current = true;
+        cancelHold();
+        if (navigator.vibrate) {
+          try {
+            navigator.vibrate(60);
+          } catch {}
+        }
+        setStaffActionTarget(staff);
+      }, duration);
+    },
+    [cancelHold]
+  );
 
   // Feedback Notification Banner
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -412,6 +476,26 @@ export const AttendanceHistoryScreen: React.FC = () => {
     }
   };
 
+  // --- Delete Staff Submit ---
+  const handleDeleteStaffConfirm = async () => {
+    if (!deletingStaff) return;
+    setIsDeletingStaff(true);
+    try {
+      await adminAPI.deleteStaff(deletingStaff.id);
+      showNotification(
+        isMarathi
+          ? `${deletingStaff.full_name} यांचे खाते डेटाबेसमधून हटवले गेले.`
+          : `Staff member ${deletingStaff.full_name} permanently deleted from database.`
+      );
+      setDeletingStaff(null);
+      await fetchStaffData();
+    } catch (err: any) {
+      showNotification(err.response?.data?.detail || "Failed to delete staff member.", true);
+    } finally {
+      setIsDeletingStaff(false);
+    }
+  };
+
   const navTabOptions: SegmentOption<"my" | "staff">[] = [
     {
       value: "my",
@@ -640,12 +724,37 @@ export const AttendanceHistoryScreen: React.FC = () => {
               return (
                 <GlassCard
                   key={staff.id}
-                  className="!p-3.5 space-y-3 transition-all duration-200 border-white/80"
+                  className="!p-3.5 space-y-3 transition-all duration-200 border-white/80 relative overflow-hidden"
                 >
-                  {/* Staff Card Header (Click to expand/collapse) */}
+                  {/* Visual hold progress indicator bar */}
+                  {holdStaffId === staff.id && holdProgress > 0 && (
+                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-brand-primary/20 z-10">
+                      <div
+                        className="h-full bg-brand-primary transition-all duration-75"
+                        style={{ width: `${holdProgress}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Staff Card Header (Click to expand/collapse, Hold 3s for actions) */}
                   <div
-                    onClick={() => toggleStaffExpand(staff.id)}
+                    onClick={() => {
+                      if (isLongPressedRef.current) {
+                        isLongPressedRef.current = false;
+                        return;
+                      }
+                      toggleStaffExpand(staff.id);
+                    }}
+                    onMouseDown={() => startHold(staff)}
+                    onMouseUp={cancelHold}
+                    onMouseLeave={cancelHold}
+                    onTouchStart={() => startHold(staff)}
+                    onTouchEnd={cancelHold}
+                    onTouchCancel={cancelHold}
+                    onTouchMove={cancelHold}
+                    onContextMenu={(e) => e.preventDefault()}
                     className="flex items-center justify-between cursor-pointer select-none group"
+                    title={isMarathi ? "३ सेकंद दाबून धरा: पिन बदला किंवा कर्मचारी हटवा" : "Hold for 3s to Reset PIN or Delete Staff"}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-xl bg-brand-primary/15 text-brand-dark flex items-center justify-center font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
@@ -662,9 +771,14 @@ export const AttendanceHistoryScreen: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-brand-muted font-medium">
-                          {formatPhone(staff.phone_number)}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] text-brand-muted font-medium">
+                            {formatPhone(staff.phone_number)}
+                          </span>
+                          <span className="text-[10px] text-brand-muted/70 italic">
+                            • {isMarathi ? "३ से. धरा" : "3s hold"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -683,28 +797,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
                   {/* Expanded Daily Entries Per Date Section */}
                   {isExpanded && (
                     <div className="pt-2 border-t border-brand-dark/10 space-y-3 animate-fadeIn">
-                      {/* Action Bar for this Staff Member */}
+                      {/* Action Bar for this Staff Member (Reset PIN removed, only Manual Adjust remains) */}
                       <div className="flex items-center justify-between gap-2 pt-1 pb-1">
                         <span className="text-[11px] font-bold text-brand-dark">
                           {isMarathi ? "दैनिक उपस्थिती नोंदी" : "Daily Attendance Logs"}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setResetPinStaff(staff);
-                              setResetPinError(null);
-                              setNewStaffPin("");
-                              setConfirmStaffPin("");
-                              setResetPinReason("");
-                            }}
-                            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 transition-all flex items-center gap-1"
-                            title={t.resetPinButton}
-                          >
-                            <KeyRound className="w-3 h-3 text-amber-700" />
-                            <span>{t.resetPinButton}</span>
-                          </button>
-
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -734,116 +832,146 @@ export const AttendanceHistoryScreen: React.FC = () => {
                             : "No attendance records logged for this staff member yet."}
                         </div>
                       ) : (
-                        /* Daily Entries Per Date Cards */
-                        <div className="space-y-2.5">
-                          {Object.entries(groupedStaffRecords).map(([dateStr, dayEvents]) => {
-                            const hasCompleted = dayEvents.some(
-                              (e) => e.event_type === "OFFICE_OUT"
-                            );
+                        /* Daily Entries Per Date Cards (Today open, past dates collapsible) */
+                        <div className="space-y-2">
+                          {Object.entries(groupedStaffRecords)
+                            .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                            .map(([dateStr, dayEvents]) => {
+                              const isToday = dateStr === todayStr;
+                              const isDateExpanded =
+                                isToday || (expandedDates[`${staff.id}_${dateStr}`] ?? false);
+                              const hasCompleted = dayEvents.some(
+                                (e) => e.event_type === "OFFICE_OUT"
+                              );
 
-                            return (
-                              <div
-                                key={dateStr}
-                                className="p-3 rounded-xl bg-white/70 border border-white shadow-xs space-y-2"
-                              >
-                                {/* Date Card Header */}
-                                <div className="flex items-center justify-between pb-1.5 border-b border-brand-dark/10">
-                                  <div className="flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5 text-brand-primary" />
-                                    <span className="text-xs font-bold text-brand-dark">
-                                      {new Date(dateStr).toLocaleDateString(
-                                        isMarathi ? "mr-IN" : "en-IN",
-                                        {
-                                          weekday: "short",
-                                          day: "numeric",
-                                          month: "short",
-                                          year: "numeric",
-                                        }
+                              return (
+                                <div
+                                  key={dateStr}
+                                  className="rounded-xl bg-white/70 border border-white shadow-xs overflow-hidden transition-all"
+                                >
+                                  {/* Date Card Header (Clickable for past dates) */}
+                                  <div
+                                    onClick={() => {
+                                      if (!isToday) {
+                                        toggleDateExpand(staff.id, dateStr);
+                                      }
+                                    }}
+                                    className={`p-2.5 flex items-center justify-between transition-colors ${
+                                      !isToday ? "cursor-pointer hover:bg-white/90" : "bg-brand-primary/5"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <Calendar className="w-3.5 h-3.5 text-brand-primary shrink-0" />
+                                      <span className="text-xs font-bold text-brand-dark truncate">
+                                        {new Date(dateStr).toLocaleDateString(
+                                          isMarathi ? "mr-IN" : "en-IN",
+                                          {
+                                            weekday: "short",
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                          }
+                                        )}
+                                      </span>
+                                      {isToday && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-brand-primary/15 text-brand-dark border border-brand-primary/25 shrink-0">
+                                          {isMarathi ? "आज" : "Today"}
+                                        </span>
                                       )}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5">
-                                    <span
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                        hasCompleted
-                                          ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
-                                          : "bg-amber-500/15 text-amber-800 border border-amber-500/30"
-                                      }`}
-                                    >
-                                      {hasCompleted
-                                        ? isMarathi
-                                          ? "पूर्ण"
-                                          : "Completed"
-                                        : isMarathi
-                                        ? "अपूर्ण"
-                                        : "Incomplete"}
-                                    </span>
-                                    <span className="text-[10px] font-semibold text-brand-muted">
-                                      {dayEvents.length}/4
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Event Timeline for Date */}
-                                <div className="space-y-1.5">
-                                  {dayEvents.map((evt) => (
-                                    <div
-                                      key={evt.id}
-                                      className="flex items-center justify-between p-2 rounded-lg bg-white/60 border border-white/80 text-xs hover:border-brand-primary/40 transition-colors"
-                                    >
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="font-bold text-brand-dark">
-                                          {getEventName(evt.event_type)}
-                                        </span>
-                                        <span className="text-brand-muted font-medium">
-                                          {evt.scanned_at_ist}
-                                        </span>
-                                        {evt.verification_method === "QR_GPS" && (
-                                          <span
-                                            className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5"
-                                            title="Physical GPS Geofence Verified"
-                                          >
-                                            <MapPin className="w-2.5 h-2.5 text-emerald-600" />
-                                            {evt.verified_distance_meters !== null &&
-                                            evt.verified_distance_meters !== undefined
-                                              ? `${Math.round(evt.verified_distance_meters)}m`
-                                              : "GPS"}
-                                          </span>
-                                        )}
-                                        {evt.verification_method === "MANUAL_ADMIN" && (
-                                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
-                                            <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
-                                            Manual
-                                          </span>
-                                        )}
-                                        {evt.is_manually_corrected && (
-                                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 font-semibold">
-                                            Corrected
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setCorrectingEvent({ staff, event: evt });
-                                          setCorrectionEventType(evt.event_type);
-                                          setCorrectionTime(parseIstTimeTo24h(evt.scanned_at_ist, evt.scanned_at));
-                                          setCorrectionReason("");
-                                          setCorrectionError(null);
-                                        }}
-                                        className="p-1.5 rounded-md bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all"
-                                        title={t.editRecord}
-                                      >
-                                        <Edit2 className="w-3 h-3 text-brand-primary" />
-                                      </button>
                                     </div>
-                                  ))}
+
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                          hasCompleted
+                                            ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
+                                            : "bg-amber-500/15 text-amber-800 border border-amber-500/30"
+                                        }`}
+                                      >
+                                        {hasCompleted
+                                          ? isMarathi
+                                            ? "पूर्ण"
+                                            : "Completed"
+                                          : isMarathi
+                                          ? "अपूर्ण"
+                                          : "Incomplete"}
+                                      </span>
+                                      <span className="text-[10px] font-semibold text-brand-muted">
+                                        {dayEvents.length}/4
+                                      </span>
+                                      {!isToday && (
+                                        <div className="p-0.5 text-brand-muted">
+                                          {isDateExpanded ? (
+                                            <ChevronDown className="w-3.5 h-3.5" />
+                                          ) : (
+                                            <ChevronRight className="w-3.5 h-3.5" />
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Event Timeline for Date (Visible if expanded or today) */}
+                                  {isDateExpanded && (
+                                    <div className="p-2.5 pt-1 space-y-1.5 border-t border-brand-dark/5 bg-white/40">
+                                      {dayEvents.map((evt) => (
+                                        <div
+                                          key={evt.id}
+                                          className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-white text-xs hover:border-brand-primary/40 transition-colors"
+                                        >
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-bold text-brand-dark">
+                                              {getEventName(evt.event_type)}
+                                            </span>
+                                            <span className="text-brand-muted font-medium">
+                                              {evt.scanned_at_ist}
+                                            </span>
+                                            {evt.verification_method === "QR_GPS" && (
+                                              <span
+                                                className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5"
+                                                title="Physical GPS Geofence Verified"
+                                              >
+                                                <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                                                {evt.verified_distance_meters !== null &&
+                                                evt.verified_distance_meters !== undefined
+                                                  ? `${Math.round(evt.verified_distance_meters)}m`
+                                                  : "GPS"}
+                                              </span>
+                                            )}
+                                            {evt.verification_method === "MANUAL_ADMIN" && (
+                                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
+                                                <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
+                                                Manual
+                                              </span>
+                                            )}
+                                            {evt.is_manually_corrected && (
+                                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 font-semibold">
+                                                Corrected
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setCorrectingEvent({ staff, event: evt });
+                                              setCorrectionEventType(evt.event_type);
+                                              setCorrectionTime(parseIstTimeTo24h(evt.scanned_at_ist, evt.scanned_at));
+                                              setCorrectionReason("");
+                                              setCorrectionError(null);
+                                            }}
+                                            className="p-1.5 rounded-md bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all"
+                                            title={t.editRecord}
+                                          >
+                                            <Edit2 className="w-3 h-3 text-brand-primary" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
                         </div>
                       )}
                     </div>
@@ -1152,6 +1280,154 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 4: STAFF ACTION MENU (Triggered by 3s Hold)         */}
+      {/* ======================================================== */}
+      {staffActionTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm animate-fadeIn">
+          <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl">
+            <button
+              onClick={() => setStaffActionTarget(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-full hover:bg-black/5 text-brand-muted hover:text-brand-dark transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-brand-primary/15 text-brand-dark flex items-center justify-center font-bold text-lg mx-auto mb-2">
+                {staffActionTarget.full_name.charAt(0).toUpperCase()}
+              </div>
+              <h3 className="text-base font-bold text-brand-dark">
+                {staffActionTarget.full_name}
+              </h3>
+              <p className="text-xs text-brand-muted font-medium">
+                {formatPhone(staffActionTarget.phone_number)} • {staffActionTarget.role}
+              </p>
+              <p className="text-[11px] text-brand-muted/80 mt-1">
+                {isMarathi ? "कृपया खालीलपैकी एक पर्याय निवडा" : "Please select an action to perform"}
+              </p>
+            </div>
+
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = staffActionTarget;
+                  setStaffActionTarget(null);
+                  setResetPinStaff(target);
+                  setResetPinError(null);
+                  setNewStaffPin("");
+                  setConfirmStaffPin("");
+                  setResetPinReason("");
+                }}
+                className="w-full p-3.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-950 font-bold text-xs flex items-center justify-between transition-all group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-amber-500/20 text-amber-800">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-bold">{t.resetPinButton}</div>
+                    <div className="text-[10px] text-amber-800/80 font-normal">
+                      {isMarathi ? "कर्मचाऱ्याचा ६-अंकी लॉगिन पिन बदला" : "Set new 6-digit PIN for staff"}
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-amber-700 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const target = staffActionTarget;
+                  setStaffActionTarget(null);
+                  setDeletingStaff(target);
+                }}
+                className="w-full p-3.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-900 font-bold text-xs flex items-center justify-between transition-all group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-red-500/20 text-red-700">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-bold">{t.deleteStaff}</div>
+                    <div className="text-[10px] text-red-700/80 font-normal">
+                      {isMarathi ? "कर्मचारी व सर्व नोंदी कायमच्या हटवा" : "Permanently remove from database"}
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-red-600 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-brand-dark/10">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setStaffActionTarget(null)}
+                className="w-full text-xs !py-2.5"
+              >
+                {t.cancel}
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: DELETE STAFF CONFIRMATION                        */}
+      {/* ======================================================== */}
+      {deletingStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/50 backdrop-blur-sm animate-fadeIn">
+          <GlassCard className="w-full max-w-sm relative !p-6 border-red-500/30 shadow-2xl">
+            <div className="flex items-center gap-3 mb-3 text-red-600">
+              <div className="p-2.5 rounded-full bg-red-500/15">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-brand-dark">
+                  {t.deleteStaff}
+                </h3>
+                <span className="text-[11px] font-semibold text-red-600">
+                  {isMarathi ? "कायमस्वरूपी कृती" : "Permanent Action"}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-dark/90 leading-relaxed mb-4">
+              {isMarathi
+                ? `तुम्हाला खात्री आहे का? तुम्ही "${deletingStaff.full_name}" (${formatPhone(deletingStaff.phone_number)}) यांचे खाते आणि त्यांच्या सर्व उपस्थिती नोंदी डेटाबेसमधून कायमच्या हटवत आहात. ही कृती पूर्ववत केली जाऊ शकत नाही.`
+                : `Are you sure? You are about to permanently delete "${deletingStaff.full_name}" (${formatPhone(deletingStaff.phone_number)}) and all their attendance records from the database. This action cannot be undone.`}
+            </p>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isDeletingStaff}
+                onClick={() => setDeletingStaff(null)}
+                className="flex-1 text-xs !py-2.5"
+              >
+                {t.cancel}
+              </Button>
+              <button
+                type="button"
+                disabled={isDeletingStaff}
+                onClick={handleDeleteStaffConfirm}
+                className="flex-1 text-xs py-2.5 font-bold rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-md disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+              >
+                {isDeletingStaff ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isMarathi ? "होय, हटवा" : "Yes, Delete"}</span>
+              </button>
+            </div>
           </GlassCard>
         </div>
       )}

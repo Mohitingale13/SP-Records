@@ -204,6 +204,11 @@ export const adminAPI = {
     return res.data;
   },
 
+  deleteStaff: async (userId: string): Promise<{ message: string }> => {
+    const res = await apiClient.delete<{ message: string }>(`/admin/users/${userId}`);
+    return res.data;
+  },
+
   getOfficeLocation: async (): Promise<OfficeLocationConfig> => {
     const res = await apiClient.get<OfficeLocationConfig>("/admin/office-location");
     return res.data;

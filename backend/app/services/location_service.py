@@ -132,7 +132,13 @@ class LocationService:
             office_lat, office_lon, latitude, longitude
         )
 
-        if distance > geofence_radius:
+        # Allow indoor GPS jitter tolerance: if device reports accuracy between 40m and 100m,
+        # allow a proportional buffer (up to 25m) so an employee standing inside a concrete building
+        # is not rejected because of satellite multipath / reflection.
+        jitter_tolerance = min(max(0.0, (accuracy - 40.0) * 0.35), 25.0)
+        effective_radius = geofence_radius + jitter_tolerance
+
+        if distance > effective_radius:
             return (
                 False,
                 distance,

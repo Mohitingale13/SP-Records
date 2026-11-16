@@ -15,6 +15,8 @@ import {
   Navigation,
   RotateCcw,
   CheckCircle2,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 import type { AttendanceEvent, ScanLocationPayload, AttendanceEventType } from "../../types";
 
@@ -43,10 +45,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const [isOfflineSaved, setIsOfflineSaved] = useState<boolean>(false);
   const [manualToken, setManualToken] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
+  const [hasTorch, setHasTorch] = useState<boolean>(false);
+  const [isTorchOn, setIsTorchOn] = useState<boolean>(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef<boolean>(true);
+  const bestPositionRef = useRef<GeolocationPosition | null>(null);
+  const geoWatchIdRef = useRef<number | null>(null);
   const qrRegionId = "sp-qr-reader";
 
   // Friendly error message formatter - eliminates all technical/developer terms
@@ -148,6 +154,19 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     }
   };
 
+  const toggleTorch = async () => {
+    if (!scannerRef.current) return;
+    try {
+      const nextTorch = !isTorchOn;
+      await (scannerRef.current as any).applyVideoConstraints({
+        advanced: [{ torch: nextTorch }],
+      });
+      setIsTorchOn(nextTorch);
+    } catch (e) {
+      console.warn("Could not toggle torch:", e);
+    }
+  };
+
   const restartScanner = async () => {
     setErrorMessage("");
     setScanState("SCANNING");
@@ -155,7 +174,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       try {
         await scannerRef.current.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
+          {
+            fps: 10,
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+              const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+              const boxSize = Math.floor(minDim * 0.8);
+              return { width: boxSize, height: boxSize };
+            },
+          },
           (text) => handleScannedToken(text),
           () => {}
         );
@@ -164,6 +190,99 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         setScanState("ERROR");
       }
     }
+  };
+
+  // Progressive GPS Acquisition: Uses warm background fix or streams fixes until <= 100m accuracy
+  const acquirePosition = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      // 1. If background pre-warm already captured a fresh (<20s), high-accuracy (<=40m) fix, resolve instantly!
+      const warmPos = bestPositionRef.current;
+      if (warmPos && warmPos.coords.accuracy <= 40 && Date.now() - warmPos.timestamp < 20000) {
+        resolve(warmPos);
+        return;
+      }
+
+      let resolved = false;
+      let localWatchId: number | null = null;
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (localWatchId !== null) {
+          navigator.geolocation.clearWatch(localWatchId);
+          localWatchId = null;
+        }
+        if (timer !== null) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      };
+
+      let bestSeen = warmPos;
+
+      // Timeout after 6.5s: accept best candidate if accuracy <= 100m, else reject
+      timer = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+
+        if (bestSeen && bestSeen.coords.accuracy <= 100) {
+          resolve(bestSeen);
+        } else {
+          const err: any = new Error("ACCURACY_TOO_LOW");
+          err.accuracy = bestSeen?.coords.accuracy;
+          reject(err);
+        }
+      }, 6500);
+
+      try {
+        localWatchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            if (resolved) return;
+            const acc = pos.coords.accuracy;
+            if (!bestSeen || acc < bestSeen.coords.accuracy) {
+              bestSeen = pos;
+              bestPositionRef.current = pos;
+            }
+
+            // Ideal indoor lock achieved: resolve immediately!
+            if (acc <= 35) {
+              resolved = true;
+              cleanup();
+              resolve(pos);
+            }
+          },
+          (err) => {
+            if (err.code === err.PERMISSION_DENIED) {
+              if (resolved) return;
+              resolved = true;
+              cleanup();
+              reject(err);
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 0,
+          }
+        );
+      } catch {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (resolved) return;
+            resolved = true;
+            cleanup();
+            resolve(pos);
+          },
+          (err) => {
+            if (resolved) return;
+            resolved = true;
+            cleanup();
+            reject(err);
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+      }
+    });
   };
 
   const handleScannedToken = async (token: string) => {
@@ -182,30 +301,109 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       return;
     }
 
-    // Step 2: Request High Accuracy GPS Position
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        if (!isMountedRef.current) return;
-        const { latitude, longitude, accuracy } = pos.coords;
-        const location_timestamp = new Date(pos.timestamp).toISOString();
+    // Step 2: Request Progressive High-Accuracy GPS Position
+    try {
+      const pos = await acquirePosition();
+      if (!isMountedRef.current) return;
 
-        // Check reported accuracy threshold (50m maximum acceptable)
-        if (accuracy > 50) {
-          const friendlyAcc =
+      const { latitude, longitude, accuracy } = pos.coords;
+      const location_timestamp = new Date(pos.timestamp).toISOString();
+
+      // Check reported accuracy threshold (100m maximum acceptable for indoor reliability)
+      if (accuracy > 100) {
+        const friendlyAcc =
+          language === "mr"
+            ? "GPS सिग्नल कमकुवत आहे. कृपया खिडकीजवळ किंवा मोकळ्या जागेत जा आणि पुन्हा प्रयत्न करा."
+            : "GPS signal is weak. Please move near a window or open area and retry.";
+        setErrorMessage(friendlyAcc);
+        setScanState("ERROR");
+        return;
+      }
+
+      setStepMessage(t.locationVerifying);
+
+      // ==========================================
+      // OFFLINE MODE: Save to Local Queue Directly
+      // ==========================================
+      if (!navigator.onLine || !isOnline) {
+        try {
+          const offlineRec = await saveOfflineAttendance({
+            eventType: expectedEventType || "OFFICE_IN",
+            latitude,
+            longitude,
+            accuracy,
+            qrToken: token.trim(),
+            locationTimestamp: location_timestamp,
+          });
+
+          const optimisticEvent: AttendanceEvent = {
+            id: offlineRec.id,
+            event_type: offlineRec.event_type,
+            event_date: new Date().toISOString().split("T")[0],
+            scanned_at: offlineRec.scanned_at,
+            scanned_at_ist: new Date().toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            is_manually_corrected: false,
+            reported_accuracy_meters: accuracy,
+            verification_method: "OFFLINE_GPS",
+          };
+
+          setRecordedEvent(optimisticEvent);
+          setIsOfflineSaved(true);
+          setScanState("SUCCESS");
+
+          // Auto-dismiss after 3.5 seconds
+          autoCloseTimerRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              onSuccess(optimisticEvent, true);
+              onClose();
+            }
+          }, 3500);
+
+          return;
+        } catch (offlineErr: any) {
+          setErrorMessage(
             language === "mr"
-              ? "GPS सिग्नल कमकुवत आहे. कृपया खिडकीजवळ किंवा मोकळ्या जागेत जा आणि पुन्हा प्रयत्न करा."
-              : "GPS signal is weak. Please move near a window or open area and retry.";
-          setErrorMessage(friendlyAcc);
+              ? "स्थानिक फोन मेमरीमध्ये उपस्थिती सेव्ह होऊ शकली नाही. कृपया पुन्हा प्रयत्न करा."
+              : "Could not save attendance to local storage. Please retry."
+          );
           setScanState("ERROR");
           return;
         }
+      }
 
-        setStepMessage(t.locationVerifying);
+      // ==========================================
+      // ONLINE MODE: Submit to Backend
+      // ==========================================
+      try {
+        const payload: ScanLocationPayload = {
+          qr_token: token.trim(),
+          latitude,
+          longitude,
+          accuracy,
+          location_timestamp,
+        };
 
-        // ==========================================
-        // OFFLINE MODE: Save to Local Queue Directly
-        // ==========================================
-        if (!navigator.onLine || !isOnline) {
+        const event = await attendanceAPI.scan(payload);
+
+        setRecordedEvent(event);
+        setIsOfflineSaved(false);
+        setScanState("SUCCESS");
+
+        // Auto-dismiss after 3.5 seconds
+        autoCloseTimerRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            onSuccess(event, false);
+            onClose();
+          }
+        }, 3500);
+      } catch (err: any) {
+        if (!isMountedRef.current) return;
+
+        // If network connection dropped during scan, gracefully buffer offline!
+        if (!err.response || err.code === "ERR_NETWORK" || !navigator.onLine) {
           try {
             const offlineRec = await saveOfflineAttendance({
               eventType: expectedEventType || "OFFICE_IN",
@@ -234,116 +432,36 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             setIsOfflineSaved(true);
             setScanState("SUCCESS");
 
-            // Auto-dismiss after 3.5 seconds
             autoCloseTimerRef.current = setTimeout(() => {
               if (isMountedRef.current) {
                 onSuccess(optimisticEvent, true);
                 onClose();
               }
             }, 3500);
-
             return;
-          } catch (offlineErr: any) {
-            setErrorMessage(
-              language === "mr"
-                ? "स्थानिक फोन मेमरीमध्ये उपस्थिती सेव्ह होऊ शकली नाही. कृपया पुन्हा प्रयत्न करा."
-                : "Could not save attendance to local storage. Please retry."
-            );
-            setScanState("ERROR");
-            return;
-          }
+          } catch {}
         }
 
-        // ==========================================
-        // ONLINE MODE: Submit to Backend
-        // ==========================================
-        try {
-          const payload: ScanLocationPayload = {
-            qr_token: token.trim(),
-            latitude,
-            longitude,
-            accuracy,
-            location_timestamp,
-          };
-
-          const event = await attendanceAPI.scan(payload);
-
-          setRecordedEvent(event);
-          setIsOfflineSaved(false);
-          setScanState("SUCCESS");
-
-          // Auto-dismiss after 3.5 seconds
-          autoCloseTimerRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              onSuccess(event, false);
-              onClose();
-            }
-          }, 3500);
-        } catch (err: any) {
-          if (!isMountedRef.current) return;
-
-          // If network connection dropped during scan, gracefully buffer offline!
-          if (!err.response || err.code === "ERR_NETWORK" || !navigator.onLine) {
-            try {
-              const offlineRec = await saveOfflineAttendance({
-                eventType: expectedEventType || "OFFICE_IN",
-                latitude,
-                longitude,
-                accuracy,
-                qrToken: token.trim(),
-                locationTimestamp: location_timestamp,
-              });
-
-              const optimisticEvent: AttendanceEvent = {
-                id: offlineRec.id,
-                event_type: offlineRec.event_type,
-                event_date: new Date().toISOString().split("T")[0],
-                scanned_at: offlineRec.scanned_at,
-                scanned_at_ist: new Date().toLocaleTimeString("en-IN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-                is_manually_corrected: false,
-                reported_accuracy_meters: accuracy,
-                verification_method: "OFFLINE_GPS",
-              };
-
-              setRecordedEvent(optimisticEvent);
-              setIsOfflineSaved(true);
-              setScanState("SUCCESS");
-
-              autoCloseTimerRef.current = setTimeout(() => {
-                if (isMountedRef.current) {
-                  onSuccess(optimisticEvent, true);
-                  onClose();
-                }
-              }, 3500);
-              return;
-            } catch {}
-          }
-
-          const rawMsg = err.response?.data?.detail || err.message || "";
-          setErrorMessage(formatFriendlyError(rawMsg));
-          setScanState("ERROR");
-        }
-      },
-      (geoErr) => {
-        if (!isMountedRef.current) return;
-        let errMsg = t.locationTimeout;
-        if (geoErr.code === geoErr.PERMISSION_DENIED) {
-          errMsg = t.gpsErrorPermission;
-        } else if (geoErr.code === geoErr.POSITION_UNAVAILABLE) {
-          errMsg = t.gpsErrorUnavailable;
-        }
-        setErrorMessage(errMsg);
+        const rawMsg = err.response?.data?.detail || err.message || "";
+        setErrorMessage(formatFriendlyError(rawMsg));
         setScanState("ERROR");
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5000,
       }
-    );
+    } catch (geoErr: any) {
+      if (!isMountedRef.current) return;
+      let errMsg = t.locationTimeout;
+      if (geoErr.code === geoErr.PERMISSION_DENIED) {
+        errMsg = t.gpsErrorPermission;
+      } else if (geoErr.code === geoErr.POSITION_UNAVAILABLE) {
+        errMsg = t.gpsErrorUnavailable;
+      } else if (geoErr.message === "ACCURACY_TOO_LOW") {
+        errMsg =
+          language === "mr"
+            ? "GPS सिग्नल कमकुवत आहे. कृपया खिडकीजवळ किंवा मोकळ्या जागेत जा आणि पुन्हा प्रयत्न करा."
+            : "GPS signal is weak. Please move near a window or open area and retry.";
+      }
+      setErrorMessage(errMsg);
+      setScanState("ERROR");
+    }
   };
 
   const handleSuccessDone = () => {
@@ -362,6 +480,13 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current);
       }
+      if (geoWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
+      bestPositionRef.current = null;
+      setIsTorchOn(false);
+      setHasTorch(false);
       return;
     }
 
@@ -370,6 +495,30 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     setRecordedEvent(null);
     setIsOfflineSaved(false);
     setStepMessage("");
+    setIsTorchOn(false);
+    setHasTorch(false);
+
+    // Pre-warm GPS in the background immediately as modal opens
+    if (navigator.geolocation) {
+      try {
+        geoWatchIdRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            const acc = pos.coords.accuracy;
+            if (!bestPositionRef.current || acc < bestPositionRef.current.coords.accuracy) {
+              bestPositionRef.current = pos;
+            }
+          },
+          () => {},
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
+        );
+      } catch (e) {
+        console.warn("Could not pre-warm GPS:", e);
+      }
+    }
 
     const startScanner = async () => {
       try {
@@ -380,8 +529,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           { facingMode: "environment" },
           {
             fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+              const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+              const boxSize = Math.floor(minDim * 0.8);
+              return { width: boxSize, height: boxSize };
+            },
           },
           async (decodedText) => {
             if (!isMountedRef.current || scanState === "PROCESSING") return;
@@ -389,6 +541,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           },
           () => {}
         );
+
+        // Detect torch support
+        try {
+          const track = (scanner as any).getRunningTrackCapabilities?.();
+          if (track && track.torch) {
+            setHasTorch(true);
+          }
+        } catch {}
       } catch (err: any) {
         console.warn("Camera start failed:", err);
         setErrorMessage(t.cameraErrorPermission);
@@ -406,6 +566,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current);
       }
+      if (geoWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(geoWatchIdRef.current);
+        geoWatchIdRef.current = null;
+      }
+      bestPositionRef.current = null;
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current
           .stop()
@@ -604,6 +769,23 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             {/* Video scanning area */}
             <div className="relative rounded-2xl overflow-hidden border-2 border-brand-primary/40 bg-black/5 aspect-square flex items-center justify-center mb-3">
               <div id={qrRegionId} className="w-full h-full" />
+
+              {/* Torch / Flashlight Button if camera supports it */}
+              {hasTorch && scanState === "SCANNING" && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className={`absolute top-3 right-3 z-10 p-2 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 text-xs font-bold ${
+                    isTorchOn
+                      ? "bg-amber-400 text-amber-950 shadow-lg shadow-amber-400/40"
+                      : "bg-black/50 text-white hover:bg-black/70"
+                  }`}
+                  title={language === "mr" ? "टॉर्च चालू/बंद करा" : "Toggle Flashlight"}
+                >
+                  {isTorchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+                  <span>{language === "mr" ? "टॉर्च" : "Flash"}</span>
+                </button>
+              )}
               {scanState === "PROCESSING" && (
                 <div className="absolute inset-0 bg-brand-dark/80 backdrop-blur-md flex flex-col items-center justify-center text-white gap-3 p-4 text-center z-20">
                   <div className="relative">

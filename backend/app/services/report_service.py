@@ -55,6 +55,62 @@ def format_report_period(start_d: date, end_d: date, is_marathi: bool) -> str:
         return f"{start_d.day:02d} {start_m} {start_d.year} – {end_d.day:02d} {end_m} {end_d.year}"
     return f"{start_d.strftime('%d %b %Y')} – {end_d.strftime('%d %b %Y')}"
 
+def calculate_work_seconds(
+    in_evt: Optional[AttendanceRecord],
+    l_out_evt: Optional[AttendanceRecord],
+    l_in_evt: Optional[AttendanceRecord],
+    out_evt: Optional[AttendanceRecord],
+) -> float:
+    """
+    Calculates total productive working seconds for a day, strictly excluding lunch break.
+    - If full 4-step shift: (LUNCH_OUT - IN) + (OUT - LUNCH_IN)
+    - If 2-step shift without lunch punches: (OUT - IN)
+    - If shift incomplete (missing OUT): 0.0
+    """
+    if not in_evt or not out_evt:
+        return 0.0
+
+    in_time = in_evt.scanned_at
+    out_time = out_evt.scanned_at
+
+    if out_time < in_time:
+        return 0.0
+
+    # If both lunch break punches exist in valid chronological order
+    if (
+        l_out_evt
+        and l_in_evt
+        and in_time <= l_out_evt.scanned_at <= l_in_evt.scanned_at <= out_time
+    ):
+        morning_sec = (l_out_evt.scanned_at - in_time).total_seconds()
+        afternoon_sec = (out_time - l_in_evt.scanned_at).total_seconds()
+        return max(0.0, morning_sec + afternoon_sec)
+
+    # If no lunch break punches, return total elapsed shift duration
+    return max(0.0, (out_time - in_time).total_seconds())
+
+def format_duration(seconds: float, is_marathi: bool) -> str:
+    """Formats seconds into human-readable duration (e.g. 7h 45m / 7 तास 45 मि)."""
+    if seconds <= 0:
+        return "—"
+    total_min = int(round(seconds / 60))
+    hours = total_min // 60
+    minutes = total_min % 60
+    if is_marathi:
+        if hours > 0 and minutes > 0:
+            return f"{hours} तास {minutes:02d} मि"
+        elif hours > 0:
+            return f"{hours} तास"
+        else:
+            return f"{minutes} मि"
+    else:
+        if hours > 0 and minutes > 0:
+            return f"{hours}h {minutes:02d}m"
+        elif hours > 0:
+            return f"{hours}h"
+        else:
+            return f"{minutes}m"
+
 HAS_DEVANAGARI_FONT = False
 if os.path.exists(REGULAR_FONT_PATH):
     try:
@@ -143,11 +199,18 @@ class ReportService:
                 "col_lunch_in": "जेवण (परत)",
                 "col_out": "कार्यालय निर्गमन",
                 "col_status": "स्थिती",
-                "col_salary": "वेतन",
+                "col_work_hours": "कामाचे तास",
                 "status_completed": "पूर्ण",
                 "status_incomplete": "अपूर्ण",
                 "status_not_started": "नोंद नाही",
                 "no_records": "या कालावधीसाठी कोणत्याही उपस्थिती नोंदी आढळल्या नाहीत.",
+                "weekly_summary_title": "साप्ताहिक कर्मचारी कामाचे तास सारांश",
+                "monthly_summary_title": "मासिक कर्मचारी कामाचे तास सारांश",
+                "col_staff_name": "कर्मचाऱ्याचे नाव",
+                "col_completed_days": "पूर्ण उपस्थिती दिवस",
+                "col_total_hours": "एकूण कामाचे तास",
+                "col_avg_hours": "दैनंदिन सरासरी",
+                "grand_total": "एकूण संस्था तास",
             }
         else:
             L = {
@@ -163,14 +226,28 @@ class ReportService:
                 "col_lunch_in": "Lunch In",
                 "col_out": "Office Out",
                 "col_status": "Status",
-                "col_salary": "Salary",
+                "col_work_hours": "Work Hours",
                 "status_completed": "Completed",
                 "status_incomplete": "Incomplete",
                 "status_not_started": "Not Started",
                 "no_records": "No attendance records found for this period.",
+                "weekly_summary_title": "Weekly Staff Working Hours Summary",
+                "monthly_summary_title": "Monthly Staff Working Hours Summary",
+                "col_staff_name": "Employee Name",
+                "col_completed_days": "Completed Days",
+                "col_total_hours": "Total Hours Worked",
+                "col_avg_hours": "Daily Average",
+                "grand_total": "Grand Total",
             }
 
         # Query Database
+        staff_users = (
+            db.query(User)
+            .join(Role, User.role_id == Role.id)
+            .filter(Role.name.in_(["STAFF", "ADMIN"]))
+            .order_by(User.full_name.asc())
+            .all()
+        )
         all_users = db.query(User).all()
         user_map = {u.id: u for u in all_users}
         records = (
@@ -190,6 +267,10 @@ class ReportService:
             if key not in day_user_events:
                 day_user_events[key] = {}
             day_user_events[key][r.event_type] = r
+
+        # Accumulators for period working hours summary
+        user_work_seconds: Dict[Any, float] = {u.id: 0.0 for u in staff_users}
+        user_completed_days: Dict[Any, int] = {u.id: 0 for u in staff_users}
 
         # Setup Document Layout (A4 Landscape)
         buffer = io.BytesIO()
@@ -242,6 +323,24 @@ class ReportService:
             fontSize=8,
             leading=10,
             textColor=colors.HexColor("#153B43"),
+        )
+        cell_center = ParagraphStyle(
+            "ReportCellCenter",
+            parent=styles["Normal"],
+            fontName=font_regular,
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#153B43"),
+            alignment=1,  # Centered
+        )
+        cell_center_bold = ParagraphStyle(
+            "ReportCellCenterBold",
+            parent=styles["Normal"],
+            fontName=font_bold,
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#153B43"),
+            alignment=1,  # Centered
         )
         header_cell_style = ParagraphStyle(
             "ReportHeaderCell",
@@ -322,7 +421,7 @@ class ReportService:
                 Paragraph(L["col_lunch_in"], header_cell_style),
                 Paragraph(L["col_out"], header_cell_style),
                 Paragraph(L["col_status"], header_cell_style),
-                Paragraph(L["col_salary"], header_cell_style),
+                Paragraph(L["col_work_hours"], header_cell_style),
             ]
         ]
 
@@ -330,12 +429,12 @@ class ReportService:
         if not records:
             table_rows.append([
                 Paragraph(f"<i>{L['no_records']}</i>", cell_style),
-                Paragraph("—", cell_style),
-                Paragraph("—", cell_style),
-                Paragraph("—", cell_style),
-                Paragraph("—", cell_style),
-                Paragraph("—", cell_style),
-                Paragraph("", cell_style),
+                Paragraph("—", cell_center),
+                Paragraph("—", cell_center),
+                Paragraph("—", cell_center),
+                Paragraph("—", cell_center),
+                Paragraph("—", cell_center),
+                Paragraph("—", cell_center),
             ])
         else:
             # Sort day_user_events by date ascending, then user name
@@ -375,19 +474,28 @@ class ReportService:
                 has_correction = any(e.is_manually_corrected for e in day_dict.values())
                 correction_flag = " *" if has_correction else ""
 
+                # Calculate productive work duration strictly excluding lunch break
+                day_sec = calculate_work_seconds(in_evt, l_out_evt, l_in_evt, out_evt)
                 if out_evt:
                     status_str = f"<font color='#008080'><b>{L['status_completed']}{correction_flag}</b></font>"
+                    hours_str = format_duration(day_sec, is_marathi)
+                    if user_id in user_completed_days:
+                        user_completed_days[user_id] += 1
                 else:
                     status_str = f"<font color='#D97706'><b>{L['status_incomplete']}{correction_flag}</b></font>"
+                    hours_str = "—"
+
+                if user_id in user_work_seconds:
+                    user_work_seconds[user_id] += day_sec
 
                 table_rows.append([
                     Paragraph(emp_name, cell_bold),
-                    Paragraph(in_str, cell_style),
-                    Paragraph(l_out_str, cell_style),
-                    Paragraph(l_in_str, cell_style),
-                    Paragraph(out_str, cell_style),
-                    Paragraph(status_str, cell_style),
-                    Paragraph("", cell_style),
+                    Paragraph(in_str, cell_center),
+                    Paragraph(l_out_str, cell_center),
+                    Paragraph(l_in_str, cell_center),
+                    Paragraph(out_str, cell_center),
+                    Paragraph(status_str, cell_center),
+                    Paragraph(hours_str, cell_center_bold),
                 ])
 
         # Table Column Widths (Sum = 770 points fitting A4 landscape)
@@ -422,12 +530,83 @@ class ReportService:
         attendance_table.setStyle(TableStyle(t_style))
         elements.append(attendance_table)
 
+        # Staff Working Hours Summary Table (Weekly & Monthly Total Hours)
+        elements.append(Spacer(1, 14))
+        summary_title_text = (
+            L["weekly_summary_title"] if report_type == "WEEKLY" else L["monthly_summary_title"]
+        )
+        elements.append(Paragraph(f"<b>{summary_title_text}</b>", subtitle_style))
+        elements.append(Spacer(1, 6))
+
+        summary_rows = [
+            [
+                Paragraph(L["col_staff_name"], header_cell_style),
+                Paragraph(L["col_completed_days"], header_cell_style),
+                Paragraph(L["col_total_hours"], header_cell_style),
+                Paragraph(L["col_avg_hours"], header_cell_style),
+            ]
+        ]
+
+        # Populate rows for staff members
+        for u in staff_users:
+            tot_sec = user_work_seconds.get(u.id, 0.0)
+            comp_days = user_completed_days.get(u.id, 0)
+            avg_sec = (tot_sec / comp_days) if comp_days > 0 else 0.0
+
+            tot_str = format_duration(tot_sec, is_marathi)
+            avg_str = format_duration(avg_sec, is_marathi)
+
+            summary_rows.append([
+                Paragraph(u.full_name, cell_bold),
+                Paragraph(str(comp_days), cell_center),
+                Paragraph(tot_str, cell_center_bold),
+                Paragraph(avg_str, cell_center),
+            ])
+
+        # Grand Total Row across all staff
+        grand_total_sec = sum(user_work_seconds.values())
+        grand_total_days = sum(user_completed_days.values())
+        grand_total_str = format_duration(grand_total_sec, is_marathi)
+
+        summary_rows.append([
+            Paragraph(f"<b>{L['grand_total']}</b>", cell_bold),
+            Paragraph(f"<b>{grand_total_days}</b>", cell_center_bold),
+            Paragraph(f"<b>{grand_total_str}</b>", cell_center_bold),
+            Paragraph("—", cell_center),
+        ])
+
+        summary_table = Table(summary_rows, colWidths=[260, 170, 170, 170])
+        s_style = [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#00C7C7")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+            ("TOPPADDING", (0, 0), (-1, 0), 5),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBEFED")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 1), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 3),
+            # Grand Total Row Styling
+            ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#E0F7F5")),
+            ("LINEABOVE", (0, -1), (-1, -1), 1, colors.HexColor("#00C7C7")),
+            ("TOPPADDING", (0, -1), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, -1), (-1, -1), 4),
+        ]
+
+        for r_idx in range(1, len(summary_rows) - 1):
+            if r_idx % 2 == 0:
+                s_style.append(("BACKGROUND", (0, r_idx), (-1, r_idx), colors.HexColor("#F8FEFD")))
+            else:
+                s_style.append(("BACKGROUND", (0, r_idx), (-1, r_idx), colors.white))
+
+        summary_table.setStyle(TableStyle(s_style))
+        elements.append(summary_table)
+
         # Footnote
-        elements.append(Spacer(1, 5))
+        elements.append(Spacer(1, 8))
         footnote_text = (
-            "* अधिकृत प्रशासकाद्वारे मॅन्युअल जोडलेली किंवा दुरुस्त केलेली उपस्थिती नोंद दर्शवते."
+            "* अधिकृत प्रशासकाद्वारे मॅन्युअल जोडलेली किंवा दुरुस्त केलेली उपस्थिती नोंद दर्शवते. कामाचे तास मोजताना जेवणाचा ब्रेक (Lunch Break) वगळण्यात आला आहे."
             if is_marathi
-            else "* Indicates an attendance record manually corrected or added by an authorized administrator."
+            else "* Indicates an attendance record manually corrected or added by an authorized administrator. Total hours exclude lunch breaks."
         )
         elements.append(Paragraph(footnote_text, meta_style))
 

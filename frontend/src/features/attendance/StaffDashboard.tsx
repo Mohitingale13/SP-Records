@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useOffline } from "../../contexts/OfflineContext";
 import { attendanceAPI, qrAPI } from "../../services/api";
+import { locationService } from "../../services/locationService";
 import QRCode from "qrcode";
 import type { AttendanceStatusSummary, AttendanceEventType, AttendanceEvent } from "../../types";
 import { useNavigate } from "react-router-dom";
@@ -82,7 +83,11 @@ export const StaffDashboard: React.FC = () => {
   useEffect(() => {
     if (!isSuperAdmin) {
       fetchStatus(false);
+      locationService.startWarmup();
     }
+    return () => {
+      locationService.stopWarmup();
+    };
   }, [isSuperAdmin, fetchStatus]);
 
   // Real-time automatic background polling & focus refresh (every 25s)

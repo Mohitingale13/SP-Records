@@ -5,6 +5,7 @@ import { Button } from "../../components/common/Button";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useOffline } from "../../contexts/OfflineContext";
 import { attendanceAPI } from "../../services/api";
+import { locationService } from "../../services/locationService";
 import {
   X,
   QrCode,
@@ -197,97 +198,27 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     }
   };
 
-  // Progressive GPS Acquisition: Uses warm background fix or streams fixes until <= 100m accuracy
-  const acquirePosition = (): Promise<GeolocationPosition> => {
-    return new Promise((resolve, reject) => {
-      // 1. If background pre-warm already captured a fresh (<20s), high-accuracy (<=40m) fix, resolve instantly!
-      const warmPos = bestPositionRef.current;
-      if (warmPos && warmPos.coords.accuracy <= 40 && Date.now() - warmPos.timestamp < 20000) {
-        resolve(warmPos);
-        return;
-      }
-
-      let resolved = false;
-      let localWatchId: number | null = null;
-      let timer: NodeJS.Timeout | null = null;
-
-      const cleanup = () => {
-        if (localWatchId !== null) {
-          navigator.geolocation.clearWatch(localWatchId);
-          localWatchId = null;
-        }
-        if (timer !== null) {
-          clearTimeout(timer);
-          timer = null;
-        }
-      };
-
-      let bestSeen = warmPos;
-
-      // Timeout after 6.5s: accept best candidate if accuracy <= 100m, else reject
-      timer = setTimeout(() => {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
-
-        if (bestSeen && bestSeen.coords.accuracy <= 100) {
-          resolve(bestSeen);
-        } else {
-          const err: any = new Error("ACCURACY_TOO_LOW");
-          err.accuracy = bestSeen?.coords.accuracy;
-          reject(err);
-        }
-      }, 6500);
-
-      try {
-        localWatchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            if (resolved) return;
-            const acc = pos.coords.accuracy;
-            if (!bestSeen || acc < bestSeen.coords.accuracy) {
-              bestSeen = pos;
-              bestPositionRef.current = pos;
-            }
-
-            // Ideal indoor lock achieved: resolve immediately!
-            if (acc <= 35) {
-              resolved = true;
-              cleanup();
-              resolve(pos);
-            }
-          },
-          (err) => {
-            if (err.code === err.PERMISSION_DENIED) {
-              if (resolved) return;
-              resolved = true;
-              cleanup();
-              reject(err);
-            }
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 8000,
-            maximumAge: 0,
-          }
-        );
-      } catch {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (resolved) return;
-            resolved = true;
-            cleanup();
-            resolve(pos);
-          },
-          (err) => {
-            if (resolved) return;
-            resolved = true;
-            cleanup();
-            reject(err);
-          },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-        );
-      }
+  // Progressive Enterprise GPS Acquisition:
+  // Uses dashboard pre-warm cache, parallel GNSS + Network Wi-Fi positioning, and extended indoor lock window (12s)
+  const acquirePosition = async (): Promise<{
+    coords: { latitude: number; longitude: number; accuracy: number };
+    timestamp: number;
+  }> => {
+    const loc = await locationService.acquireLocation({
+      onStepMessage: (msg) => {
+        if (isMountedRef.current) setStepMessage(msg);
+      },
+      isMarathi: language === "mr",
+      maxAccuracy: 110.0,
     });
+    return {
+      coords: {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy: loc.accuracy,
+      },
+      timestamp: new Date(loc.timestamp).getTime(),
+    };
   };
 
   const handleScannedToken = async (token: string) => {
@@ -314,8 +245,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       const { latitude, longitude, accuracy } = pos.coords;
       const location_timestamp = new Date(pos.timestamp).toISOString();
 
-      // Check reported accuracy threshold (100m maximum acceptable for indoor reliability)
-      if (accuracy > 100) {
+      // Check reported accuracy threshold (110m maximum acceptable for indoor reliability on older devices)
+      if (accuracy > 110) {
         const friendlyAcc =
           language === "mr"
             ? "GPS सिग्नल कमकुवत आहे. कृपया खिडकीजवळ किंवा मोकळ्या जागेत जा आणि पुन्हा प्रयत्न करा."
@@ -454,11 +385,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     } catch (geoErr: any) {
       if (!isMountedRef.current) return;
       let errMsg = t.locationTimeout;
-      if (geoErr.code === geoErr.PERMISSION_DENIED) {
+      if (geoErr.code === geoErr.PERMISSION_DENIED || geoErr.message === "PERMISSION_DENIED") {
         errMsg = t.gpsErrorPermission;
-      } else if (geoErr.code === geoErr.POSITION_UNAVAILABLE) {
+      } else if (geoErr.code === geoErr.POSITION_UNAVAILABLE || geoErr.message === "POSITION_UNAVAILABLE") {
         errMsg = t.gpsErrorUnavailable;
-      } else if (geoErr.message === "ACCURACY_TOO_LOW") {
+      } else if (
+        geoErr.message === "ACCURACY_TOO_LOW" ||
+        /accuracy/i.test(geoErr.message || "")
+      ) {
         errMsg =
           language === "mr"
             ? "GPS सिग्नल कमकुवत आहे. कृपया खिडकीजवळ किंवा मोकळ्या जागेत जा आणि पुन्हा प्रयत्न करा."
@@ -504,26 +438,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     setHasTorch(false);
 
     // Pre-warm GPS in the background immediately as modal opens
-    if (navigator.geolocation) {
-      try {
-        geoWatchIdRef.current = navigator.geolocation.watchPosition(
-          (pos) => {
-            const acc = pos.coords.accuracy;
-            if (!bestPositionRef.current || acc < bestPositionRef.current.coords.accuracy) {
-              bestPositionRef.current = pos;
-            }
-          },
-          () => {},
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-          }
-        );
-      } catch (e) {
-        console.warn("Could not pre-warm GPS:", e);
-      }
-    }
+    locationService.startWarmup();
 
     const startScanner = async () => {
       try {

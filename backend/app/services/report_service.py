@@ -335,7 +335,7 @@ class ReportService:
                 Paragraph("—", cell_style),
                 Paragraph("—", cell_style),
                 Paragraph("—", cell_style),
-                Paragraph("—", cell_style),
+                Paragraph("", cell_style),
             ])
         else:
             # Sort day_user_events by date ascending, then user name
@@ -387,7 +387,7 @@ class ReportService:
                     Paragraph(l_in_str, cell_style),
                     Paragraph(out_str, cell_style),
                     Paragraph(status_str, cell_style),
-                    Paragraph("—", cell_style),
+                    Paragraph("", cell_style),
                 ])
 
         # Table Column Widths (Sum = 770 points fitting A4 landscape)

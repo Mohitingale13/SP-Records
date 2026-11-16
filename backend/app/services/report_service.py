@@ -280,6 +280,14 @@ class ReportService:
             textColor=colors.white,
             alignment=1,  # Centered
         )
+        date_header_style = ParagraphStyle(
+            "ReportDateHeaderCell",
+            parent=styles["Normal"],
+            fontName=font_bold,
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#153B43"),
+        )
 
         elements = []
 
@@ -375,6 +383,7 @@ class ReportService:
             ]
         ]
 
+        date_header_indices = []
         if not records:
             table_rows.append([
                 Paragraph(f"<i>{L['no_records']}</i>", cell_style),
@@ -392,7 +401,19 @@ class ReportService:
                 key=lambda k: (k[1], user_map.get(k[0]).full_name if k[0] in user_map else "")
             )
 
+            last_date = None
             for user_id, event_date in sorted_keys:
+                # Group & differentiate clearly by date
+                if event_date != last_date:
+                    last_date = event_date
+                    date_row_idx = len(table_rows)
+                    date_header_indices.append(date_row_idx)
+                    formatted_dt = format_report_date(event_date, is_marathi)
+                    table_rows.append([
+                        Paragraph(f"<b>📅 {formatted_dt}</b>", date_header_style),
+                        "", "", "", "", "", ""
+                    ])
+
                 user = user_map.get(user_id)
                 emp_name = user.full_name if user else "Unknown Staff"
                 day_dict = day_user_events[(user_id, event_date)]
@@ -441,12 +462,19 @@ class ReportService:
             ("BOTTOMPADDING", (0, 1), (-1, -1), 3),
         ]
 
-        # Alternating row colors
+        # Apply alternating row colors or date banner styling
         for i in range(1, len(table_rows)):
-            if i % 2 == 0:
-                t_style.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#F8FEFD")))
+            if i in date_header_indices:
+                t_style.append(("SPAN", (0, i), (-1, i)))
+                t_style.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#E0F7F5")))
+                t_style.append(("LINEBELOW", (0, i), (-1, i), 1, colors.HexColor("#00C7C7")))
+                t_style.append(("TOPPADDING", (0, i), (-1, i), 5))
+                t_style.append(("BOTTOMPADDING", (0, i), (-1, i), 5))
             else:
-                t_style.append(("BACKGROUND", (0, i), (-1, i), colors.white))
+                if i % 2 == 0:
+                    t_style.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#F8FEFD")))
+                else:
+                    t_style.append(("BACKGROUND", (0, i), (-1, i), colors.white))
 
         attendance_table.setStyle(TableStyle(t_style))
         elements.append(attendance_table)

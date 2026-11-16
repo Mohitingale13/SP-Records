@@ -137,18 +137,13 @@ class ReportService:
                 "monthly_title": "मासिक उपस्थिती अहवाल",
                 "period": "कालावधी",
                 "generated_on": "निर्मिती वेळ",
-                "total_staff": "एकूण कर्मचारी",
-                "active_staff": "सक्रिय कर्मचारी",
-                "completed_days": "पूर्ण उपस्थिती दिवस",
-                "incomplete_days": "अपूर्ण उपस्थिती दिवस",
-                "total_events": "एकूण नोंदवलेले प्रसंग",
                 "col_employee": "कर्मचाऱ्याचे नाव",
-                "col_date": "दिनांक",
                 "col_in": "कार्यालय आगमन",
                 "col_lunch_out": "जेवण (बाहेर)",
                 "col_lunch_in": "जेवण (परत)",
                 "col_out": "कार्यालय निर्गमन",
                 "col_status": "स्थिती",
+                "col_salary": "वेतन",
                 "status_completed": "पूर्ण",
                 "status_incomplete": "अपूर्ण",
                 "status_not_started": "नोंद नाही",
@@ -162,18 +157,13 @@ class ReportService:
                 "monthly_title": "Monthly Attendance Report",
                 "period": "Reporting Period",
                 "generated_on": "Generated On",
-                "total_staff": "Total Staff",
-                "active_staff": "Active Staff in Period",
-                "completed_days": "Completed Cycles",
-                "incomplete_days": "Incomplete Cycles",
-                "total_events": "Total Events Logged",
                 "col_employee": "Employee Name",
-                "col_date": "Date",
                 "col_in": "Office In",
                 "col_lunch_out": "Lunch Out",
                 "col_lunch_in": "Lunch In",
                 "col_out": "Office Out",
                 "col_status": "Status",
+                "col_salary": "Salary",
                 "status_completed": "Completed",
                 "status_incomplete": "Incomplete",
                 "status_not_started": "Not Started",
@@ -181,13 +171,6 @@ class ReportService:
             }
 
         # Query Database
-        all_staff = (
-            db.query(User)
-            .join(Role, User.role_id == Role.id)
-            .filter(Role.name.in_(["STAFF", "ADMIN"]))
-            .order_by(User.full_name.asc())
-            .all()
-        )
         all_users = db.query(User).all()
         user_map = {u.id: u for u in all_users}
         records = (
@@ -202,22 +185,11 @@ class ReportService:
 
         # Aggregate data by (user_id, event_date)
         day_user_events: Dict[tuple, Dict[str, AttendanceRecord]] = {}
-        active_user_ids = set()
-        completed_days_count = 0
-        incomplete_days_count = 0
-
         for r in records:
             key = (r.user_id, r.event_date)
             if key not in day_user_events:
                 day_user_events[key] = {}
             day_user_events[key][r.event_type] = r
-            active_user_ids.add(r.user_id)
-
-        for key, event_dict in day_user_events.items():
-            if AttendanceEventType.OFFICE_OUT.value in event_dict:
-                completed_days_count += 1
-            else:
-                incomplete_days_count += 1
 
         # Setup Document Layout (A4 Landscape)
         buffer = io.BytesIO()
@@ -226,8 +198,8 @@ class ReportService:
             pagesize=landscape(A4),
             leftMargin=36,
             rightMargin=36,
-            topMargin=36,
-            bottomMargin=42,
+            topMargin=32,
+            bottomMargin=32,
         )
 
         styles = getSampleStyleSheet()
@@ -339,47 +311,18 @@ class ReportService:
                 ("TOPPADDING", (0, 0), (-1, -1), 2),
             ]))
         elements.append(header_table)
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 14))
 
-        # 2. Executive Metrics Summary Table
-        summary_data = [
-            [
-                Paragraph(f"<b>{L['total_staff']}</b>", meta_style),
-                Paragraph(f"<b>{L['active_staff']}</b>", meta_style),
-                Paragraph(f"<b>{L['completed_days']}</b>", meta_style),
-                Paragraph(f"<b>{L['incomplete_days']}</b>", meta_style),
-                Paragraph(f"<b>{L['total_events']}</b>", meta_style),
-            ],
-            [
-                Paragraph(f"<b>{len(all_staff)}</b>", cell_bold),
-                Paragraph(f"<b>{len(active_user_ids)}</b>", cell_bold),
-                Paragraph(f"<b>{completed_days_count}</b>", cell_bold),
-                Paragraph(f"<b>{incomplete_days_count}</b>", cell_bold),
-                Paragraph(f"<b>{len(records)}</b>", cell_bold),
-            ]
-        ]
-        summary_table = Table(summary_data, colWidths=[154, 154, 154, 154, 154])
-        summary_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0FBFA")),
-            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#B8F2EC")),
-            ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9FAF5")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ]))
-        elements.append(summary_table)
-        elements.append(Spacer(1, 12))
-
-        # 3. Attendance Roster Table
+        # Attendance Roster Table
         table_rows = [
             [
                 Paragraph(L["col_employee"], header_cell_style),
-                Paragraph(L["col_date"], header_cell_style),
                 Paragraph(L["col_in"], header_cell_style),
                 Paragraph(L["col_lunch_out"], header_cell_style),
                 Paragraph(L["col_lunch_in"], header_cell_style),
                 Paragraph(L["col_out"], header_cell_style),
                 Paragraph(L["col_status"], header_cell_style),
+                Paragraph(L["col_salary"], header_cell_style),
             ]
         ]
 
@@ -439,16 +382,16 @@ class ReportService:
 
                 table_rows.append([
                     Paragraph(emp_name, cell_bold),
-                    Paragraph(format_report_date(event_date, is_marathi), cell_style),
                     Paragraph(in_str, cell_style),
                     Paragraph(l_out_str, cell_style),
                     Paragraph(l_in_str, cell_style),
                     Paragraph(out_str, cell_style),
                     Paragraph(status_str, cell_style),
+                    Paragraph("—", cell_style),
                 ])
 
         # Table Column Widths (Sum = 770 points fitting A4 landscape)
-        col_widths = [160, 110, 100, 100, 100, 100, 100]
+        col_widths = [170, 100, 100, 100, 100, 100, 100]
         attendance_table = Table(table_rows, colWidths=col_widths, repeatRows=1)
 
         t_style = [
@@ -480,7 +423,7 @@ class ReportService:
         elements.append(attendance_table)
 
         # Footnote
-        elements.append(Spacer(1, 8))
+        elements.append(Spacer(1, 5))
         footnote_text = (
             "* अधिकृत प्रशासकाद्वारे मॅन्युअल जोडलेली किंवा दुरुस्त केलेली उपस्थिती नोंद दर्शवते."
             if is_marathi

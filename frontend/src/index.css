@@ -250,3 +250,57 @@ body {
   stroke-dashoffset: 40;
   animation: cross-line 0.35s 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ============================================================== */
+/* CAMERA VIEWPORT OVERRIDES (iOS Safari & Android Edge-to-Edge)   */
+/* Prevents Safari from letterboxing or shrinking video stream    */
+/* ============================================================== */
+#sp-qr-reader {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  border: none !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#sp-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  -webkit-object-fit: cover !important;
+  border-radius: 1rem !important;
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+#sp-qr-reader canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+}
+
+#sp-qr-reader__scan_region {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+#sp-qr-reader__scan_region video {
+  object-fit: cover !important;
+  -webkit-object-fit: cover !important;
+}
+
+#sp-qr-reader__dashboard,
+#sp-qr-reader__dashboard_section_csr,
+#sp-qr-reader__dashboard_section_swaplink,
+#sp-qr-reader__header_message {
+  display: none !important;
+}

@@ -175,11 +175,16 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         await scannerRef.current.start(
           { facingMode: "environment" },
           {
-            fps: 10,
+            fps: 15,
             qrbox: (viewfinderWidth, viewfinderHeight) => {
               const minDim = Math.min(viewfinderWidth, viewfinderHeight);
-              const boxSize = Math.floor(minDim * 0.8);
+              const boxSize = Math.max(220, Math.floor(minDim * 0.85));
               return { width: boxSize, height: boxSize };
+            },
+            videoConstraints: {
+              facingMode: "environment",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
             },
           },
           (text) => handleScannedToken(text),
@@ -528,11 +533,16 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         await scanner.start(
           { facingMode: "environment" },
           {
-            fps: 10,
+            fps: 15,
             qrbox: (viewfinderWidth, viewfinderHeight) => {
               const minDim = Math.min(viewfinderWidth, viewfinderHeight);
-              const boxSize = Math.floor(minDim * 0.8);
+              const boxSize = Math.max(220, Math.floor(minDim * 0.85));
               return { width: boxSize, height: boxSize };
+            },
+            videoConstraints: {
+              facingMode: "environment",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
             },
           },
           async (decodedText) => {
@@ -586,7 +596,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/50 backdrop-blur-md animate-fadeIn">
-      <GlassCard className="w-full max-w-sm relative !p-6 border-white/80 shadow-2xl overflow-hidden transition-all duration-300">
+      <GlassCard className="w-full max-w-sm sm:max-w-md relative !p-4 sm:!p-6 border-white/80 shadow-2xl overflow-hidden transition-all duration-300">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-xl bg-white/60 hover:bg-white text-brand-dark transition-all z-10"
@@ -767,7 +777,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             )}
 
             {/* Video scanning area */}
-            <div className="relative rounded-2xl overflow-hidden border-2 border-brand-primary/40 bg-black/5 aspect-square flex items-center justify-center mb-3">
+            <div className="relative rounded-2xl overflow-hidden border-2 border-brand-primary/40 bg-black/10 w-full h-[280px] sm:h-[320px] flex items-center justify-center mb-3">
               <div id={qrRegionId} className="w-full h-full" />
 
               {/* Torch / Flashlight Button if camera supports it */}

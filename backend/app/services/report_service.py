@@ -1,5 +1,6 @@
 import io
 import os
+import re
 from datetime import date, datetime, timedelta
 from typing import List, Dict, Any, Optional
 from reportlab.lib.pagesizes import A4, landscape
@@ -97,12 +98,13 @@ def format_duration(seconds: float, is_marathi: bool) -> str:
     hours = total_min // 60
     minutes = total_min % 60
     if is_marathi:
+        mi_lbl = fix_devanagari_i_matra("मि")
         if hours > 0 and minutes > 0:
-            return f"{hours} तास {minutes:02d} मि"
+            return f"{hours} तास {minutes:02d} {mi_lbl}"
         elif hours > 0:
             return f"{hours} तास"
         else:
-            return f"{minutes} मि"
+            return f"{minutes} {mi_lbl}"
     else:
         if hours > 0 and minutes > 0:
             return f"{hours}h {minutes:02d}m"
@@ -122,6 +124,20 @@ if os.path.exists(REGULAR_FONT_PATH):
         HAS_DEVANAGARI_FONT = True
     except Exception as e:
         print(f"Warning: Failed to register Devanagari font: {e}")
+
+
+def fix_devanagari_i_matra(text: str) -> str:
+    """
+    Reorders Unicode Devanagari short-i vowel signs (\u093f) before consonant clusters.
+    ReportLab's TrueType engine lacks OpenType GSUB reordering; moving \u093f before
+    the base consonant cluster prevents combining marks from rendering onto following characters
+    (e.g. fixes 'शविम' -> 'शिवम', 'बगिर' -> 'बिगर', 'मर्यादति' -> 'मर्यादित', 'डजिटिल' -> 'डिजिटल').
+    """
+    if not text or not HAS_DEVANAGARI_FONT:
+        return text
+    pattern = r'((?:[\u0915-\u0939]\u093c?\u094d)*[\u0915-\u0939]\u093c?)\u093f'
+    I_MATRA = '\u093f'
+    return re.sub(pattern, lambda m: I_MATRA + m.group(1), text)
 
 
 class NumberedCanvas(canvas.Canvas):
@@ -149,7 +165,7 @@ class NumberedCanvas(canvas.Canvas):
         # A4 landscape width is 841.89 points, height is 595.27 points
         page_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(841.89 - 36, 24, page_text)
-        self.drawString(36, 24, "Shivam Patsanstha – Confidential Digital Attendance Record")
+        self.drawString(36, 24, "Shivam Gramin Bigar Sheti Sahakari Patsanstha Maryadit – Confidential Digital Attendance Record")
         self.restoreState()
 
 
@@ -187,34 +203,34 @@ class ReportService:
         # Localization Labels
         if is_marathi:
             L = {
-                "org_name": "शिवम पतसंस्था",
-                "register_title": "डिजिटल उपस्थिती नोंदवही",
-                "weekly_title": "साप्ताहिक उपस्थिती अहवाल",
-                "monthly_title": "मासिक उपस्थिती अहवाल",
-                "period": "कालावधी",
-                "generated_on": "निर्मिती वेळ",
-                "col_employee": "कर्मचाऱ्याचे नाव",
-                "col_in": "कार्यालय आगमन",
-                "col_lunch_out": "जेवण (बाहेर)",
-                "col_lunch_in": "जेवण (परत)",
-                "col_out": "कार्यालय निर्गमन",
-                "col_status": "स्थिती",
-                "col_work_hours": "कामाचे तास",
-                "status_completed": "पूर्ण",
-                "status_incomplete": "अपूर्ण",
-                "status_not_started": "नोंद नाही",
-                "no_records": "या कालावधीसाठी कोणत्याही उपस्थिती नोंदी आढळल्या नाहीत.",
-                "weekly_summary_title": "साप्ताहिक कर्मचारी कामाचे तास सारांश",
-                "monthly_summary_title": "मासिक कर्मचारी कामाचे तास सारांश",
-                "col_staff_name": "कर्मचाऱ्याचे नाव",
-                "col_completed_days": "पूर्ण उपस्थिती दिवस",
-                "col_total_hours": "एकूण कामाचे तास",
-                "col_avg_hours": "दैनंदिन सरासरी",
-                "grand_total": "एकूण संस्था तास",
+                "org_name": fix_devanagari_i_matra("शिवम ग्रामीण बिगर शेती सहकारी पतसंस्था मर्यादित"),
+                "register_title": fix_devanagari_i_matra("डिजिटल उपस्थिती नोंदवही"),
+                "weekly_title": fix_devanagari_i_matra("साप्ताहिक उपस्थिती अहवाल"),
+                "monthly_title": fix_devanagari_i_matra("मासिक उपस्थिती अहवाल"),
+                "period": fix_devanagari_i_matra("कालावधी"),
+                "generated_on": fix_devanagari_i_matra("निर्मिती वेळ"),
+                "col_employee": fix_devanagari_i_matra("कर्मचाऱ्याचे नाव"),
+                "col_in": fix_devanagari_i_matra("कार्यालय आगमन"),
+                "col_lunch_out": fix_devanagari_i_matra("जेवण (बाहेर)"),
+                "col_lunch_in": fix_devanagari_i_matra("जेवण (परत)"),
+                "col_out": fix_devanagari_i_matra("कार्यालय निर्गमन"),
+                "col_status": fix_devanagari_i_matra("स्थिती"),
+                "col_work_hours": fix_devanagari_i_matra("कामाचे तास"),
+                "status_completed": fix_devanagari_i_matra("पूर्ण"),
+                "status_incomplete": fix_devanagari_i_matra("अपूर्ण"),
+                "status_not_started": fix_devanagari_i_matra("नोंद नाही"),
+                "no_records": fix_devanagari_i_matra("या कालावधीसाठी कोणत्याही उपस्थिती नोंदी आढळल्या नाहीत."),
+                "weekly_summary_title": fix_devanagari_i_matra("साप्ताहिक कर्मचारी कामाचे तास सारांश"),
+                "monthly_summary_title": fix_devanagari_i_matra("मासिक कर्मचारी कामाचे तास सारांश"),
+                "col_staff_name": fix_devanagari_i_matra("कर्मचाऱ्याचे नाव"),
+                "col_completed_days": fix_devanagari_i_matra("पूर्ण उपस्थिती दिवस"),
+                "col_total_hours": fix_devanagari_i_matra("एकूण कामाचे तास"),
+                "col_avg_hours": fix_devanagari_i_matra("दैनंदिन सरासरी"),
+                "grand_total": fix_devanagari_i_matra("एकूण संस्था तास"),
             }
         else:
             L = {
-                "org_name": "Shivam Patsanstha",
+                "org_name": "Shivam Gramin Bigar Sheti Sahakari Patsanstha Maryadit",
                 "register_title": "Digital Attendance Register",
                 "weekly_title": "Weekly Attendance Report",
                 "monthly_title": "Monthly Attendance Report",
@@ -670,14 +686,14 @@ class ReportService:
             textColor=colors.HexColor("#92400E"),
         )
 
-        elements.append(Paragraph("शिवम नागरी सहकारी पतसंस्था मर्यादित", title_style))
+        elements.append(Paragraph(fix_devanagari_i_matra("शिवम ग्रामीण बिगर शेती सहकारी पतसंस्था मर्यादित"), title_style))
         elements.append(Spacer(1, 4))
-        elements.append(Paragraph("Shivam Nagari Sahakari Patsanstha Maryadit", subtitle_style))
+        elements.append(Paragraph("Shivam Gramin Bigar Sheti Sahakari Patsanstha Maryadit", subtitle_style))
         elements.append(Spacer(1, 10))
 
         # Decorative Badge Pill
         badge_table = Table(
-            [[Paragraph("अधिकृत कर्मचारी डिजिटल उपस्थिती फलक (OFFICIAL ATTENDANCE QR)", badge_style)]],
+            [[Paragraph(fix_devanagari_i_matra("अधिकृत कर्मचारी डिजिटल उपस्थिती फलक (OFFICIAL ATTENDANCE QR)"), badge_style)]],
             colWidths=[480],
         )
         badge_table.setStyle(
@@ -733,19 +749,19 @@ class ReportService:
         )
 
         sec_col = [
-            Paragraph("<b>सुरक्षा वैशिष्ट्ये (Security Features)</b>", inst_title_style),
+            Paragraph(fix_devanagari_i_matra("<b>सुरक्षा वैशिष्ट्ये (Security Features)</b>"), inst_title_style),
             Spacer(1, 4),
-            Paragraph(f"• <b>GPS Geofence:</b> {int(geofence_radius)} मीटर कार्यालयीन आवारातच उपस्थिती वैध.", inst_body_style),
-            Paragraph("• <b>Satellite GPS:</b> मोबाईल लोकेशनद्वारे प्रत्यक्ष उपस्थितीची पडताळणी.", inst_body_style),
-            Paragraph("• <b>Anti-Spoofing:</b> घरून किंवा बाहेरून फोटो स्कॅन केल्यास आपोआप बाद.", inst_body_style),
+            Paragraph(fix_devanagari_i_matra(f"• <b>GPS Geofence:</b> {int(geofence_radius)} मीटर कार्यालयीन आवारातच उपस्थिती वैध."), inst_body_style),
+            Paragraph(fix_devanagari_i_matra("• <b>Satellite GPS:</b> मोबाईल लोकेशनद्वारे प्रत्यक्ष उपस्थितीची पडताळणी."), inst_body_style),
+            Paragraph(fix_devanagari_i_matra("• <b>Anti-Spoofing:</b> घरून किंवा बाहेरून फोटो स्कॅन केल्यास आपोआप बाद."), inst_body_style),
         ]
 
         how_col = [
-            Paragraph("<b>उपस्थिती नोंदवण्याची पद्धत (How to Scan)</b>", inst_title_style),
+            Paragraph(fix_devanagari_i_matra("<b>उपस्थिती नोंदवण्याची पद्धत (How to Scan)</b>"), inst_title_style),
             Spacer(1, 4),
-            Paragraph("१. मोबाईलमध्ये <b>Shivam Attendance</b> अ‍ॅप उघडा.", inst_body_style),
-            Paragraph("२. <b>'Scan QR'</b> बटण दाबून हा कोड स्कॅन करा.", inst_body_style),
-            Paragraph("३. आगमन, दुपारचे जेवण व निर्गमन वेळी स्कॅन करा.", inst_body_style),
+            Paragraph(fix_devanagari_i_matra("१. मोबाईलमध्ये <b>Shivam Attendance</b> अ‍ॅप उघडा."), inst_body_style),
+            Paragraph(fix_devanagari_i_matra("२. <b>'Scan QR'</b> बटण दाबून हा कोड स्कॅन करा."), inst_body_style),
+            Paragraph(fix_devanagari_i_matra("३. आगमन, दुपारचे जेवण व निर्गमन वेळी स्कॅन करा."), inst_body_style),
         ]
 
         inst_table = Table([[sec_col, how_col]], colWidths=[240, 240])
@@ -773,7 +789,7 @@ class ReportService:
             textColor=colors.HexColor("#64748B"),
         )
         elements.append(
-            Paragraph("शिवम पतसंस्था – अधिकृत डिजिटल उपस्थिती व्यवस्थापन प्रणाली | बारामती", footer_style)
+            Paragraph(fix_devanagari_i_matra("शिवम ग्रामीण बिगर शेती सहकारी पतसंस्था मर्यादित – अधिकृत डिजिटल उपस्थिती व्यवस्थापन प्रणाली | माळेगाव बु ॥"), footer_style)
         )
 
         doc.build(elements)

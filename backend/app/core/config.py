@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Shivam Patsanstha Digital Attendance Management System"
-    ORGANIZATION_NAME: str = "Shivam Patsanstha"
+    ORGANIZATION_NAME: str = "Shivam Gramin Bigar Sheti Sahakari Patsanstha Maryadit"
     ORGANIZATION_CODE: str = "SHIVAM_PAT"
     API_V1_STR: str = "/api/v1"
 

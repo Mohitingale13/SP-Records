@@ -89,3 +89,4 @@ def test_pdf_report_shows_absent_for_unmarked_day(client: TestClient, db_session
         lang="mr",
     )
     assert len(pdf_mr) > 1000
+

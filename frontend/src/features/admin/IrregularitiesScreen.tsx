@@ -64,8 +64,8 @@ export const IrregularitiesScreen: React.FC = () => {
   });
 
   const handleOpenDaySettings = (item: IrregularityItem) => {
-    // Navigate to Admin dashboard with this date and staff user pre-selected
-    navigate(`/admin?date=${item.date}&userId=${item.user_id}`);
+    // Navigate to Past Records (/history) with Staff Tab, staff member, and date pre-selected
+    navigate(`/history?tab=staff&userId=${item.user_id}&date=${item.date}`);
   };
 
   const handleOpenQuickAdjust = (item: IrregularityItem) => {

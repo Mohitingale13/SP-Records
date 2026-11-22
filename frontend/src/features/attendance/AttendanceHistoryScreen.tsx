@@ -36,12 +36,16 @@ import {
   EyeOff,
   CheckCircle2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 export const AttendanceHistoryScreen: React.FC = () => {
   const { isAdmin, isSuperAdmin } = useAuth();
   const { t, isMarathi } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const paramTab = searchParams.get("tab");
+  const paramUserId = searchParams.get("userId");
+  const paramDate = searchParams.get("date");
 
   const formatPhone = (phone?: string) => (phone || "").replace(/^\+91/, "");
 
@@ -82,6 +86,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
 
   // View Mode: 'my' for personal records, 'staff' for staff attendance records
   const [activeTab, setActiveTab] = useState<"my" | "staff">(() => {
+    if (paramTab === "staff" || paramUserId) return "staff";
     return isSuperAdmin ? "staff" : "my";
   });
 
@@ -93,7 +98,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const [allStaffList, setAllStaffList] = useState<UserSummary[]>([]);
   const [monitorData, setMonitorData] = useState<DailyMonitorResponse | null>(null);
   const [isLoadingStaffData, setIsLoadingStaffData] = useState(false);
-  const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
+  const [expandedStaffId, setExpandedStaffId] = useState<string | null>(() => paramUserId || null);
   const [staffHistories, setStaffHistories] = useState<Record<string, AttendanceEvent[]>>({});
   const [loadingHistoryForId, setLoadingHistoryForId] = useState<string | null>(null);
 
@@ -140,7 +145,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const isLongPressedRef = useRef(false);
 
   // Date-wise collapsible entries
-  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>(() => {
+    if (paramUserId && paramDate) {
+      return { [`${paramUserId}_${paramDate}`]: true };
+    }
+    return {};
+  });
   const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   const toggleDateExpand = (staffId: string, dateStr: string) => {
@@ -268,7 +278,20 @@ export const AttendanceHistoryScreen: React.FC = () => {
 
   // Initial load
   useEffect(() => {
-    if (isSuperAdmin) {
+    if (paramTab === "staff" || paramUserId) {
+      setActiveTab("staff");
+      fetchStaffData();
+      if (paramUserId) {
+        setExpandedStaffId(paramUserId);
+        fetchIndividualStaffHistory(paramUserId, true);
+        if (paramDate) {
+          setExpandedDates((prev) => ({
+            ...prev,
+            [`${paramUserId}_${paramDate}`]: true,
+          }));
+        }
+      }
+    } else if (isSuperAdmin) {
       setActiveTab("staff");
       fetchStaffData();
     } else if (isAdmin) {
@@ -278,7 +301,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
       setActiveTab("my");
       fetchMyHistory();
     }
-  }, [isAdmin, isSuperAdmin, fetchMyHistory, fetchStaffData]);
+  }, [isAdmin, isSuperAdmin, fetchMyHistory, fetchStaffData, paramTab, paramUserId, paramDate, fetchIndividualStaffHistory]);
 
   // Real-time automatic background polling & focus refresh (every 20s)
   useEffect(() => {

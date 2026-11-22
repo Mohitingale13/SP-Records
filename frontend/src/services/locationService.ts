@@ -94,7 +94,7 @@ class LocationService {
 
   /**
    * Multi-stage progressive location acquisition.
-   * Tolerates slower GPS chips on older Androids (up to 20s) and runs high-accuracy + network fallback.
+   * Tolerates slower GPS chips on older Androids (up to 12s) and runs high-accuracy + network fallback.
    */
   public acquireLocation(options?: {
     onStepMessage?: (msg: string) => void;
@@ -106,9 +106,9 @@ class LocationService {
     const onStep = options?.onStepMessage;
 
     return new Promise((resolve, reject) => {
-      // 1. Check instant fresh cache first: if high accuracy (< 55m) is already warm, use it immediately
+      // 1. Check instant fresh cache first
       const cached = this.getFreshCachedLocation(30000, maxAcc);
-      if (cached && cached.accuracy <= 55) {
+      if (cached && cached.accuracy <= 40) {
         resolve({
           latitude: cached.latitude,
           longitude: cached.longitude,
@@ -124,15 +124,10 @@ class LocationService {
         return;
       }
 
-      // Temporarily stop background warmup to prevent dual watchPosition collision on older Android hardware
-      this.stopWarmup();
-
       let resolved = false;
       let localWatchId: number | null = null;
       let timer: NodeJS.Timeout | null = null;
       let networkFallbackTimer: NodeJS.Timeout | null = null;
-      let progressTimer1: NodeJS.Timeout | null = null;
-      let progressTimer2: NodeJS.Timeout | null = null;
       let bestSeen: CachedLocation | null = cached;
 
       const cleanup = () => {
@@ -147,14 +142,6 @@ class LocationService {
         if (networkFallbackTimer !== null) {
           clearTimeout(networkFallbackTimer);
           networkFallbackTimer = null;
-        }
-        if (progressTimer1 !== null) {
-          clearTimeout(progressTimer1);
-          progressTimer1 = null;
-        }
-        if (progressTimer2 !== null) {
-          clearTimeout(progressTimer2);
-          progressTimer2 = null;
         }
       };
 
@@ -179,10 +166,10 @@ class LocationService {
         reject(err);
       };
 
-      // Progress message 1: initial lock
+      // Progress messages
       onStep?.(isMr ? "जीपीएस सिग्नल शोधत आहे..." : "Acquiring GPS fix...");
 
-      // Extended timeout to 20 seconds for older hardware GPS cold starts
+      // Set total timeout: 12 seconds (generous for older hardware while staying responsive)
       timer = setTimeout(() => {
         if (resolved) return;
         if (bestSeen && bestSeen.accuracy <= maxAcc) {
@@ -190,25 +177,7 @@ class LocationService {
         } else {
           finishError("ACCURACY_TOO_LOW");
         }
-      }, 20000);
-
-      // Helpful progress cues as time elapses
-      progressTimer1 = setTimeout(() => {
-        if (!resolved) {
-          onStep?.(isMr ? "स्थान अचूकता ऑप्टिमाइझ करत आहे..." : "Calibrating satellite signal...");
-        }
-      }, 5000);
-
-      progressTimer2 = setTimeout(() => {
-        if (!resolved) {
-          // If we already have an acceptable fix (e.g. 70m), accept it rather than timing out
-          if (bestSeen && bestSeen.accuracy <= maxAcc) {
-            finishSuccess(bestSeen);
-            return;
-          }
-          onStep?.(isMr ? "सिग्नल सुधारत आहे..." : "Refining location signal...");
-        }
-      }, 11000);
+      }, 12000);
 
       // Start primary High-Accuracy watch
       try {
@@ -228,7 +197,7 @@ class LocationService {
             }
 
             // High precision fix achieved: resolve immediately!
-            if (acc <= 45) {
+            if (acc <= 35) {
               finishSuccess(candidate);
             } else if (acc <= maxAcc) {
               onStep?.(isMr ? "स्थान अचूकता ऑप्टिमाइझ करत आहे..." : "Optimizing location precision...");
@@ -241,8 +210,8 @@ class LocationService {
           },
           {
             enableHighAccuracy: true,
-            timeout: 18000,
-            maximumAge: 15000,
+            timeout: 11000,
+            maximumAge: 10000,
           }
         );
       } catch (e) {
@@ -279,7 +248,7 @@ class LocationService {
             () => {},
             {
               enableHighAccuracy: false,
-              timeout: 8000,
+              timeout: 6000,
               maximumAge: 25000,
             }
           );

@@ -259,14 +259,23 @@ export const AttendanceHistoryScreen: React.FC = () => {
   }, []);
 
   // Fetch individual staff history
+  const staffHistoriesRef = useRef<Record<string, AttendanceEvent[]>>({});
+  useEffect(() => {
+    staffHistoriesRef.current = staffHistories;
+  }, [staffHistories]);
+
   const fetchIndividualStaffHistory = useCallback(async (userId: string, force = false) => {
-    if (!force && staffHistories[userId]) {
-      return staffHistories[userId];
+    if (!force && staffHistoriesRef.current[userId]) {
+      return staffHistoriesRef.current[userId];
     }
     setLoadingHistoryForId(userId);
     try {
       const history = await adminAPI.getStaffHistory(userId);
-      setStaffHistories((prev) => ({ ...prev, [userId]: history }));
+      setStaffHistories((prev) => {
+        const next = { ...prev, [userId]: history };
+        staffHistoriesRef.current = next;
+        return next;
+      });
       return history;
     } catch (err) {
       console.error(`Failed to load history for user ${userId}:`, err);
@@ -274,7 +283,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
     } finally {
       setLoadingHistoryForId(null);
     }
-  }, [staffHistories]);
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -301,7 +310,28 @@ export const AttendanceHistoryScreen: React.FC = () => {
       setActiveTab("my");
       fetchMyHistory();
     }
-  }, [isAdmin, isSuperAdmin, fetchMyHistory, fetchStaffData, paramTab, paramUserId, paramDate, fetchIndividualStaffHistory]);
+  }, [isAdmin, isSuperAdmin, paramTab, paramUserId, paramDate, fetchMyHistory, fetchStaffData, fetchIndividualStaffHistory]);
+
+  // Smooth scroll to selected date or staff card once data is loaded
+  const autoScrolledTargetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (paramUserId) {
+      const targetKey = paramDate ? `${paramUserId}_${paramDate}` : paramUserId;
+      if (autoScrolledTargetRef.current === targetKey) return;
+
+      const timer = setTimeout(() => {
+        const dateEl = paramDate ? document.getElementById(`date-card-${paramUserId}-${paramDate}`) : null;
+        const staffEl = document.getElementById(`staff-card-${paramUserId}`);
+        const el = dateEl || staffEl;
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          autoScrolledTargetRef.current = targetKey;
+        }
+      }, 450);
+
+      return () => clearTimeout(timer);
+    }
+  }, [paramUserId, paramDate, staffHistories]);
 
   // Real-time automatic background polling & focus refresh (every 20s)
   useEffect(() => {
@@ -755,16 +785,27 @@ export const AttendanceHistoryScreen: React.FC = () => {
           ) : (
             filteredStaffList.map((staff) => {
               const isExpanded = expandedStaffId === staff.id;
+              const isSelectedStaff = paramUserId === staff.id;
               const monitorItem = staffStatusMap[staff.id];
               const currentStatus = monitorItem?.status || "NOT_STARTED";
               const staffRecords = staffHistories[staff.id] || [];
               const groupedStaffRecords = groupEventsByDate(staffRecords);
+
+              // If navigated from Irregularities for a date where no punches exist (NOT_MARKED),
+              // inject that date key so the card is rendered and admin can immediately record attendance.
+              if (isSelectedStaff && paramDate && !groupedStaffRecords[paramDate]) {
+                groupedStaffRecords[paramDate] = [];
+              }
+
               const isLoadingHistory = loadingHistoryForId === staff.id;
 
               return (
                 <GlassCard
                   key={staff.id}
-                  className="!p-3.5 space-y-3 transition-all duration-200 border-white/80 relative overflow-hidden prevent-select"
+                  id={`staff-card-${staff.id}`}
+                  className={`!p-3.5 space-y-3 transition-all duration-200 border-white/80 relative overflow-hidden prevent-select ${
+                    isSelectedStaff ? "ring-2 ring-brand-primary/50 shadow-md" : ""
+                  }`}
                 >
                   {/* Staff Card Header (Click to expand/collapse, Hold 2.5s for actions) */}
                   <div
@@ -840,6 +881,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               setManualAddStaff(staff);
+                              setManualDate(paramDate || todayStr);
                               setManualError(null);
                               setManualReason("");
                             }}
@@ -858,21 +900,22 @@ export const AttendanceHistoryScreen: React.FC = () => {
                           <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-primary" />
                           <span>Loading records for {staff.full_name}...</span>
                         </div>
-                      ) : staffRecords.length === 0 ? (
+                      ) : staffRecords.length === 0 && !paramDate ? (
                         <div className="py-6 text-center text-xs text-brand-muted bg-white/40 rounded-xl border border-white/60">
                           {isMarathi
                             ? "या कर्मचाऱ्यासाठी अद्याप कोणतीही उपस्थिती नोंद सापडली नाही."
                             : "No attendance records logged for this staff member yet."}
                         </div>
                       ) : (
-                        /* Daily Entries Per Date Cards (Today open, past dates collapsible) */
+                        /* Daily Entries Per Date Cards (Today open, target date open, past dates collapsible) */
                         <div className="space-y-2">
                           {Object.entries(groupedStaffRecords)
                             .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
                             .map(([dateStr, dayEvents]) => {
                               const isToday = dateStr === todayStr;
+                              const isTargetDate = paramUserId === staff.id && paramDate === dateStr;
                               const isDateExpanded =
-                                isToday || (expandedDates[`${staff.id}_${dateStr}`] ?? false);
+                                isToday || isTargetDate || (expandedDates[`${staff.id}_${dateStr}`] ?? false);
                               const hasCompleted = dayEvents.some(
                                 (e) => e.event_type === "OFFICE_OUT"
                               );
@@ -880,17 +923,26 @@ export const AttendanceHistoryScreen: React.FC = () => {
                               return (
                                 <div
                                   key={dateStr}
-                                  className="rounded-xl bg-white/70 border border-white shadow-xs overflow-hidden transition-all"
+                                  id={`date-card-${staff.id}-${dateStr}`}
+                                  className={`rounded-xl border shadow-xs overflow-hidden transition-all ${
+                                    isTargetDate
+                                      ? "bg-brand-primary/10 border-brand-primary ring-2 ring-brand-primary/40 shadow-md"
+                                      : "bg-white/70 border-white"
+                                  }`}
                                 >
                                   {/* Date Card Header (Clickable for past dates) */}
                                   <div
                                     onClick={() => {
-                                      if (!isToday) {
+                                      if (!isToday && !isTargetDate) {
                                         toggleDateExpand(staff.id, dateStr);
                                       }
                                     }}
                                     className={`p-2.5 flex items-center justify-between transition-colors ${
-                                      !isToday ? "cursor-pointer hover:bg-white/90" : "bg-brand-primary/5"
+                                      !isToday && !isTargetDate
+                                        ? "cursor-pointer hover:bg-white/90"
+                                        : isTargetDate
+                                        ? "bg-brand-primary/15"
+                                        : "bg-brand-primary/5"
                                     }`}
                                   >
                                     <div className="flex items-center gap-1.5 min-w-0">
@@ -911,17 +963,28 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                           {isMarathi ? "आज" : "Today"}
                                         </span>
                                       )}
+                                      {isTargetDate && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-brand-primary text-white shrink-0 animate-pulse">
+                                          {isMarathi ? "अनियमितता तारीख" : "Selected Date"}
+                                        </span>
+                                      )}
                                     </div>
 
                                     <div className="flex items-center gap-1.5 shrink-0">
                                       <span
                                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                          hasCompleted
+                                          dayEvents.length === 0
+                                            ? "bg-rose-500/15 text-rose-800 border border-rose-500/30"
+                                            : hasCompleted
                                             ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
                                             : "bg-amber-500/15 text-amber-800 border border-amber-500/30"
                                         }`}
                                       >
-                                        {hasCompleted
+                                        {dayEvents.length === 0
+                                          ? isMarathi
+                                            ? "हजेरी नाही"
+                                            : "Absent"
+                                          : hasCompleted
                                           ? isMarathi
                                             ? "पूर्ण"
                                             : "Completed"
@@ -932,7 +995,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                       <span className="text-[10px] font-semibold text-brand-muted">
                                         {dayEvents.length}/4
                                       </span>
-                                      {!isToday && (
+                                      {!isToday && !isTargetDate && (
                                         <div className="p-0.5 text-brand-muted">
                                           {isDateExpanded ? (
                                             <ChevronDown className="w-3.5 h-3.5" />
@@ -944,62 +1007,152 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                     </div>
                                   </div>
 
-                                  {/* Event Timeline for Date (Visible if expanded or today) */}
+                                  {/* Event Timeline for Date (Visible if expanded or today or target date) */}
                                   {isDateExpanded && (
                                     <div className="p-2.5 pt-1 space-y-1.5 border-t border-brand-dark/5 bg-white/40">
-                                      {dayEvents.map((evt) => (
-                                        <div
-                                          key={evt.id}
-                                          className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-white text-xs hover:border-brand-primary/40 transition-colors"
-                                        >
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-bold text-brand-dark">
-                                              {getEventName(evt.event_type)}
+                                      {dayEvents.length === 0 ? (
+                                        <div className="p-3 text-center rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs space-y-2">
+                                          <div className="flex items-center justify-center gap-1.5 text-rose-800 font-bold">
+                                            <AlertTriangle className="w-4 h-4 text-rose-600" />
+                                            <span>
+                                              {isMarathi
+                                                ? "या दिवशी कोणतीही हजेरी नोंद नाही (गैरहजर)"
+                                                : "No punches recorded for this date (Absent)"}
                                             </span>
-                                            <span className="text-brand-muted font-medium">
-                                              {evt.scanned_at_ist}
-                                            </span>
-                                            {evt.verification_method === "QR_GPS" && (
-                                              <span
-                                                className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5"
-                                                title="Physical GPS Geofence Verified"
-                                              >
-                                                <MapPin className="w-2.5 h-2.5 text-emerald-600" />
-                                                {evt.verified_distance_meters !== null &&
-                                                evt.verified_distance_meters !== undefined
-                                                  ? `${Math.round(evt.verified_distance_meters)}m`
-                                                  : "GPS"}
-                                              </span>
-                                            )}
-                                            {evt.verification_method === "MANUAL_ADMIN" && (
-                                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
-                                                <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
-                                                Manual
-                                              </span>
-                                            )}
-                                            {evt.is_manually_corrected && (
-                                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 font-semibold">
-                                                Corrected
-                                              </span>
-                                            )}
                                           </div>
-
-                                          <button
+                                          <p className="text-[11px] text-rose-700/80">
+                                            {isMarathi
+                                              ? "या कर्मचाऱ्याची या दिवशी कोणतीही उपस्थिती नोंद नाही. आपण मॅन्युअली उपस्थिती नोंदवू शकता."
+                                              : "No punches found for this staff member on this date. You can manually record attendance."}
+                                          </p>
+                                          <Button
+                                            variant="primary"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setCorrectingEvent({ staff, event: evt });
-                                              setCorrectionEventType(evt.event_type);
-                                              setCorrectionTime(parseIstTimeTo24h(evt.scanned_at_ist, evt.scanned_at));
-                                              setCorrectionReason("");
-                                              setCorrectionError(null);
+                                              setManualAddStaff(staff);
+                                              setManualDate(dateStr);
+                                              setManualEventType("OFFICE_IN");
+                                              setManualTime("10:00");
+                                              setManualReason(
+                                                isMarathi
+                                                  ? "कार्यालयीन हजेरी नोंद"
+                                                  : "Authorized manual attendance"
+                                              );
+                                              setManualError(null);
                                             }}
-                                            className="p-1.5 rounded-md bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all"
-                                            title={t.editRecord}
+                                            className="!py-1.5 !px-3 text-xs font-bold mx-auto"
+                                            icon={<PlusCircle className="w-3.5 h-3.5" />}
                                           >
-                                            <Edit2 className="w-3 h-3 text-brand-primary" />
-                                          </button>
+                                            {isMarathi ? "हजेरी नोंदवा (Office In)" : "Record Attendance (Office In)"}
+                                          </Button>
                                         </div>
-                                      ))}
+                                      ) : (
+                                        <div className="space-y-1.5">
+                                          {dayEvents.map((evt) => (
+                                            <div
+                                              key={evt.id}
+                                              className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-white text-xs hover:border-brand-primary/40 transition-colors"
+                                            >
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-bold text-brand-dark">
+                                                  {getEventName(evt.event_type)}
+                                                </span>
+                                                <span className="text-brand-muted font-medium">
+                                                  {evt.scanned_at_ist}
+                                                </span>
+                                                {evt.verification_method === "QR_GPS" && (
+                                                  <span
+                                                    className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 font-semibold flex items-center gap-0.5"
+                                                    title="Physical GPS Geofence Verified"
+                                                  >
+                                                    <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                                                    {evt.verified_distance_meters !== null &&
+                                                    evt.verified_distance_meters !== undefined
+                                                      ? `${Math.round(evt.verified_distance_meters)}m`
+                                                      : "GPS"}
+                                                  </span>
+                                                )}
+                                                {evt.verification_method === "MANUAL_ADMIN" && (
+                                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-800 font-semibold flex items-center gap-0.5">
+                                                    <ShieldAlert className="w-2.5 h-2.5 text-purple-600" />
+                                                    Manual
+                                                  </span>
+                                                )}
+                                                {evt.is_manually_corrected && (
+                                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 font-semibold">
+                                                    Corrected
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setCorrectingEvent({ staff, event: evt });
+                                                  setCorrectionEventType(evt.event_type);
+                                                  setCorrectionTime(
+                                                    parseIstTimeTo24h(evt.scanned_at_ist, evt.scanned_at)
+                                                  );
+                                                  setCorrectionReason("");
+                                                  setCorrectionError(null);
+                                                }}
+                                                className="p-1.5 rounded-md bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all"
+                                                title={t.editRecord}
+                                              >
+                                                <Edit2 className="w-3 h-3 text-brand-primary" />
+                                              </button>
+                                            </div>
+                                          ))}
+
+                                          {!hasCompleted && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setManualAddStaff(staff);
+                                                setManualDate(dateStr);
+                                                const hasIn = dayEvents.some((ev) => ev.event_type === "OFFICE_IN");
+                                                const hasLunchOut = dayEvents.some(
+                                                  (ev) => ev.event_type === "LUNCH_BREAK_OUT"
+                                                );
+                                                const hasLunchIn = dayEvents.some(
+                                                  (ev) => ev.event_type === "LUNCH_BREAK_IN"
+                                                );
+                                                const hasOut = dayEvents.some(
+                                                  (ev) => ev.event_type === "OFFICE_OUT"
+                                                );
+                                                let nextEvt = "OFFICE_OUT";
+                                                let defaultTime = "18:00";
+                                                if (!hasIn) {
+                                                  nextEvt = "OFFICE_IN";
+                                                  defaultTime = "10:00";
+                                                } else if (hasLunchOut && !hasLunchIn) {
+                                                  nextEvt = "LUNCH_BREAK_IN";
+                                                  defaultTime = "14:00";
+                                                } else if (!hasOut) {
+                                                  nextEvt = "OFFICE_OUT";
+                                                  defaultTime = "18:00";
+                                                }
+                                                setManualEventType(nextEvt);
+                                                setManualTime(defaultTime);
+                                                setManualReason(
+                                                  isMarathi
+                                                    ? "चेक-आउट नोंद विसरले"
+                                                    : "Employee forgot to check out"
+                                                );
+                                                setManualError(null);
+                                              }}
+                                              className="w-full py-1.5 px-2 text-[11px] font-semibold rounded-lg bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all flex items-center justify-center gap-1 border border-brand-primary/25 mt-2"
+                                            >
+                                              <PlusCircle className="w-3.5 h-3.5 text-brand-primary" />
+                                              <span>
+                                                {isMarathi
+                                                  ? "या दिवसासाठी उर्वरित नोंद जोडा"
+                                                  : "Add Missing Punch for this Date"}
+                                              </span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>

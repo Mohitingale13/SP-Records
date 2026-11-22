@@ -10,6 +10,7 @@ import type {
   ScanLocationPayload,
   OfflineSyncItemPayload,
   OfflineSyncResponse,
+  IrregularitiesResponse,
 } from "../types";
 
 const rawApiUrl = (import.meta.env.VITE_API_URL || "").trim();
@@ -148,6 +149,13 @@ export const adminAPI = {
     const params: Record<string, string> = {};
     if (targetDate) params.target_date = targetDate;
     const res = await apiClient.get<DailyMonitorResponse>("/admin/daily-monitor", { params });
+    return res.data;
+  },
+
+  getIrregularities: async (days: number = 30): Promise<IrregularitiesResponse> => {
+    const res = await apiClient.get<IrregularitiesResponse>("/admin/irregularities", {
+      params: { days },
+    });
     return res.data;
   },
 

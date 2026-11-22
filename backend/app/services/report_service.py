@@ -219,6 +219,7 @@ class ReportService:
                 "status_completed": fix_devanagari_i_matra("पूर्ण"),
                 "status_incomplete": fix_devanagari_i_matra("अपूर्ण"),
                 "status_not_started": fix_devanagari_i_matra("नोंद नाही"),
+                "status_absent": fix_devanagari_i_matra("गैरहजर"),
                 "no_records": fix_devanagari_i_matra("या कालावधीसाठी कोणत्याही उपस्थिती नोंदी आढळल्या नाहीत."),
                 "weekly_summary_title": fix_devanagari_i_matra("साप्ताहिक कर्मचारी कामाचे तास सारांश"),
                 "monthly_summary_title": fix_devanagari_i_matra("मासिक कर्मचारी कामाचे तास सारांश"),
@@ -246,6 +247,7 @@ class ReportService:
                 "status_completed": "Completed",
                 "status_incomplete": "Incomplete",
                 "status_not_started": "Not Started",
+                "status_absent": "Absent",
                 "no_records": "No attendance records found for this period.",
                 "weekly_summary_title": "Weekly Staff Working Hours Summary",
                 "monthly_summary_title": "Monthly Staff Working Hours Summary",
@@ -453,66 +455,73 @@ class ReportService:
                 Paragraph("—", cell_center),
             ])
         else:
-            # Sort day_user_events by date ascending, then user name
-            sorted_keys = sorted(
-                day_user_events.keys(),
-                key=lambda k: (k[1], user_map.get(k[0]).full_name if k[0] in user_map else "")
-            )
+            # Collect unique dates that have attendance records, sorted ascending
+            distinct_dates = sorted(list(set(r.event_date for r in records)))
 
-            last_date = None
-            for user_id, event_date in sorted_keys:
-                # Group & differentiate clearly by date
-                if event_date != last_date:
-                    last_date = event_date
-                    date_row_idx = len(table_rows)
-                    date_header_indices.append(date_row_idx)
-                    formatted_dt = format_report_date(event_date, is_marathi)
-                    table_rows.append([
-                        Paragraph(f"<b>📅 {formatted_dt}</b>", date_header_style),
-                        "", "", "", "", "", ""
-                    ])
-
-                user = user_map.get(user_id)
-                emp_name = user.full_name if user else "Unknown Staff"
-                day_dict = day_user_events[(user_id, event_date)]
-
-                in_evt = day_dict.get(AttendanceEventType.OFFICE_IN.value)
-                l_out_evt = day_dict.get(AttendanceEventType.LUNCH_BREAK_OUT.value)
-                l_in_evt = day_dict.get(AttendanceEventType.LUNCH_BREAK_IN.value)
-                out_evt = day_dict.get(AttendanceEventType.OFFICE_OUT.value)
-
-                in_str = format_kolkata_time(in_evt.scanned_at) if in_evt else "—"
-                l_out_str = format_kolkata_time(l_out_evt.scanned_at) if l_out_evt else "—"
-                l_in_str = format_kolkata_time(l_in_evt.scanned_at) if l_in_evt else "—"
-                out_str = format_kolkata_time(out_evt.scanned_at) if out_evt else "—"
-
-                # Check if any event in this day was manually adjusted
-                has_correction = any(e.is_manually_corrected for e in day_dict.values())
-                correction_flag = " *" if has_correction else ""
-
-                # Calculate productive work duration strictly excluding lunch break
-                day_sec = calculate_work_seconds(in_evt, l_out_evt, l_in_evt, out_evt)
-                if out_evt:
-                    status_str = f"<font color='#008080'><b>{L['status_completed']}{correction_flag}</b></font>"
-                    hours_str = format_duration(day_sec, is_marathi)
-                    if user_id in user_completed_days:
-                        user_completed_days[user_id] += 1
-                else:
-                    status_str = f"<font color='#D97706'><b>{L['status_incomplete']}{correction_flag}</b></font>"
-                    hours_str = "—"
-
-                if user_id in user_work_seconds:
-                    user_work_seconds[user_id] += day_sec
-
+            for event_date in distinct_dates:
+                date_row_idx = len(table_rows)
+                date_header_indices.append(date_row_idx)
+                formatted_dt = format_report_date(event_date, is_marathi)
                 table_rows.append([
-                    Paragraph(emp_name, cell_bold),
-                    Paragraph(in_str, cell_center),
-                    Paragraph(l_out_str, cell_center),
-                    Paragraph(l_in_str, cell_center),
-                    Paragraph(out_str, cell_center),
-                    Paragraph(status_str, cell_center),
-                    Paragraph(hours_str, cell_center_bold),
+                    Paragraph(f"<b>📅 {formatted_dt}</b>", date_header_style),
+                    "", "", "", "", "", ""
                 ])
+
+                for user in staff_users:
+                    user_id = user.id
+                    emp_name = user.full_name
+                    day_dict = day_user_events.get((user_id, event_date))
+
+                    if day_dict:
+                        in_evt = day_dict.get(AttendanceEventType.OFFICE_IN.value)
+                        l_out_evt = day_dict.get(AttendanceEventType.LUNCH_BREAK_OUT.value)
+                        l_in_evt = day_dict.get(AttendanceEventType.LUNCH_BREAK_IN.value)
+                        out_evt = day_dict.get(AttendanceEventType.OFFICE_OUT.value)
+
+                        in_str = format_kolkata_time(in_evt.scanned_at) if in_evt else "—"
+                        l_out_str = format_kolkata_time(l_out_evt.scanned_at) if l_out_evt else "—"
+                        l_in_str = format_kolkata_time(l_in_evt.scanned_at) if l_in_evt else "—"
+                        out_str = format_kolkata_time(out_evt.scanned_at) if out_evt else "—"
+
+                        # Check if any event in this day was manually adjusted
+                        has_correction = any(e.is_manually_corrected for e in day_dict.values())
+                        correction_flag = " *" if has_correction else ""
+
+                        # Calculate productive work duration strictly excluding lunch break
+                        day_sec = calculate_work_seconds(in_evt, l_out_evt, l_in_evt, out_evt)
+                        if out_evt:
+                            status_str = f"<font color='#008080'><b>{L['status_completed']}{correction_flag}</b></font>"
+                            hours_str = format_duration(day_sec, is_marathi)
+                            if user_id in user_completed_days:
+                                user_completed_days[user_id] += 1
+                        else:
+                            status_str = f"<font color='#D97706'><b>{L['status_incomplete']}{correction_flag}</b></font>"
+                            hours_str = "—"
+
+                        if user_id in user_work_seconds:
+                            user_work_seconds[user_id] += day_sec
+
+                        table_rows.append([
+                            Paragraph(emp_name, cell_bold),
+                            Paragraph(in_str, cell_center),
+                            Paragraph(l_out_str, cell_center),
+                            Paragraph(l_in_str, cell_center),
+                            Paragraph(out_str, cell_center),
+                            Paragraph(status_str, cell_center),
+                            Paragraph(hours_str, cell_center_bold),
+                        ])
+                    else:
+                        # Employee was not present for the whole day -> display Absent
+                        status_str = f"<font color='#DC2626'><b>{L['status_absent']}</b></font>"
+                        table_rows.append([
+                            Paragraph(emp_name, cell_bold),
+                            Paragraph("—", cell_center),
+                            Paragraph("—", cell_center),
+                            Paragraph("—", cell_center),
+                            Paragraph("—", cell_center),
+                            Paragraph(status_str, cell_center),
+                            Paragraph("—", cell_center_bold),
+                        ])
 
         # Table Column Widths (Sum = 770 points fitting A4 landscape)
         col_widths = [170, 100, 100, 100, 100, 100, 100]

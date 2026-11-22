@@ -174,6 +174,25 @@ export interface Translations {
   deleteStaffSuccess: string;
   holdMenuTitle: string;
   holdMenuHint: string;
+
+  // Irregularities & Day Adjustments
+  irregularities: string;
+  missingCheckout: string;
+  dayNotMarked: string;
+  incompleteBreak: string;
+  allIrregularities: string;
+  adjustTiming: string;
+  openDaySettings: string;
+  noIrregularities: string;
+  quickAdjust: string;
+  saveAdjustment: string;
+  dailyStaffRecords: string;
+  addMissingPunch: string;
+  correctPunch: string;
+  punchType: string;
+  time: string;
+  auditReason: string;
+  adjustmentSuccess: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -351,6 +370,25 @@ export const translations: Record<Language, Translations> = {
     deleteStaffSuccess: "Staff member permanently deleted from database.",
     holdMenuTitle: "Staff Actions Menu",
     holdMenuHint: "Hold for 3s to manage PIN or Delete",
+
+    // Irregularities & Day Adjustments
+    irregularities: "Irregularities",
+    missingCheckout: "Missing Check-Out",
+    dayNotMarked: "Day Not Marked",
+    incompleteBreak: "Incomplete Lunch Break",
+    allIrregularities: "All Irregularities",
+    adjustTiming: "Adjust Timing",
+    openDaySettings: "Open Day Settings",
+    noIrregularities: "No irregularities found! All attendance records are complete.",
+    quickAdjust: "Quick Adjust",
+    saveAdjustment: "Save Adjustment",
+    dailyStaffRecords: "Staff Attendance for this Date",
+    addMissingPunch: "Add Missing Punch",
+    correctPunch: "Correct Existing Punch",
+    punchType: "Punch Event",
+    time: "Punch Time",
+    auditReason: "Reason for Adjustment",
+    adjustmentSuccess: "Attendance adjusted and recalculation saved successfully!",
   },
   mr: {
     appName: "शिवम पतसंस्था",
@@ -526,5 +564,24 @@ export const translations: Record<Language, Translations> = {
     deleteStaffSuccess: "कर्मचारी खाते डेटाबेसमधून हटवले गेले.",
     holdMenuTitle: "कर्मचारी व्यवस्थापन पर्याय",
     holdMenuHint: "पिन रीसेट किंवा हटवण्यासाठी ३ सेकंद दाबून धरा",
+
+    // Irregularities & Day Adjustments
+    irregularities: "अनियमितता",
+    missingCheckout: "निर्गमन नोंद नाही (Check-Out विसरले)",
+    dayNotMarked: "दिवसाची हजेरी नोंद नाही (गैरहजर)",
+    incompleteBreak: "जेवण ब्रेक अपूर्ण (परत नोंद नाही)",
+    allIrregularities: "सर्व अनियमितता",
+    adjustTiming: "वेळ बदला / हजेरी नोंदवा",
+    openDaySettings: "या दिवसाचे तपशील उघडा",
+    noIrregularities: "कोणतीही अनियमितता नाही! सर्व हजेरी नोंदी पूर्ण आहेत.",
+    quickAdjust: "त्वरित बदल",
+    saveAdjustment: "बदल जतन करा",
+    dailyStaffRecords: "या दिवसाची कर्मचारी हजेरी",
+    addMissingPunch: "नसलेली नोंद समाविष्ट करा",
+    correctPunch: "हजेरी वेळ दुरुस्त करा",
+    punchType: "नोंदीचा प्रकार",
+    time: "वेळ",
+    auditReason: "बदलाचे कारण",
+    adjustmentSuccess: "हजेरी वेळ यशस्वीरीत्या अद्ययावत केली गेली!",
   },
 };

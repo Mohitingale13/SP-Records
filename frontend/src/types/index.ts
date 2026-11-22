@@ -134,3 +134,33 @@ export interface OfflineSyncResponse {
   results: OfflineSyncResultItem[];
 }
 
+export type IrregularityType = "MISSING_CHECKOUT" | "NOT_MARKED" | "INCOMPLETE_BREAK";
+
+export interface IrregularityItem {
+  id: string;
+  date: string;
+  date_formatted: string;
+  date_formatted_mr: string;
+  user_id: string;
+  user_name: string;
+  user_phone: string;
+  user_role: string;
+  type: IrregularityType;
+  severity: "danger" | "warning";
+  title: string;
+  title_mr: string;
+  description: string;
+  description_mr: string;
+  in_time?: string | null;
+  out_time?: string | null;
+  events: AttendanceEvent[];
+}
+
+export interface IrregularitiesResponse {
+  total_irregularities: number;
+  missing_checkouts_count: number;
+  not_marked_count: number;
+  irregularities: IrregularityItem[];
+}
+
+

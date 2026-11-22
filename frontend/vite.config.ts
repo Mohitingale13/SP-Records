@@ -8,9 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "masked-icon.svg"],
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "masked-icon.svg", "pwa-192x192.png", "pwa-512x512.png"],
       manifest: {
-        name: "Shivam Patsanstha Digital Attendance",
+        id: "/?v=2",
+        name: "Shivam Gramin Bigar Sheti Sahakari Patsanstha Maryadit",
         short_name: "Shivam Attendance",
         description: "Digital Attendance Management System for Shivam Patsanstha",
         theme_color: "#00C7C7",
@@ -21,17 +22,17 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "/pwa-192x192.png",
+            src: "/pwa-192x192.png?v=2",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/pwa-512x512.png",
+            src: "/pwa-512x512.png?v=2",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "/pwa-512x512.png",
+            src: "/pwa-512x512.png?v=2",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",

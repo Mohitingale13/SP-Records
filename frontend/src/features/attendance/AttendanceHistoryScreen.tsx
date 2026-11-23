@@ -381,6 +381,8 @@ export const AttendanceHistoryScreen: React.FC = () => {
         return t.lunchBreakIn;
       case "OFFICE_OUT":
         return t.officeOut;
+      case "ABSENT":
+        return isMarathi ? "गैरहजर (Absent)" : "Absent";
       default:
         return String(eventType).replace(/_/g, " ");
     }
@@ -916,6 +918,9 @@ export const AttendanceHistoryScreen: React.FC = () => {
                               const isTargetDate = paramUserId === staff.id && paramDate === dateStr;
                               const isDateExpanded =
                                 isToday || isTargetDate || (expandedDates[`${staff.id}_${dateStr}`] ?? false);
+                              const isAbsent = dayEvents.some(
+                                (e) => e.event_type === "ABSENT"
+                              );
                               const hasCompleted = dayEvents.some(
                                 (e) => e.event_type === "OFFICE_OUT"
                               );
@@ -973,16 +978,16 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                     <div className="flex items-center gap-1.5 shrink-0">
                                       <span
                                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                          dayEvents.length === 0
+                                          dayEvents.length === 0 || isAbsent
                                             ? "bg-rose-500/15 text-rose-800 border border-rose-500/30"
                                             : hasCompleted
                                             ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
                                             : "bg-amber-500/15 text-amber-800 border border-amber-500/30"
                                         }`}
                                       >
-                                        {dayEvents.length === 0
+                                        {dayEvents.length === 0 || isAbsent
                                           ? isMarathi
-                                            ? "हजेरी नाही"
+                                            ? "गैरहजर"
                                             : "Absent"
                                           : hasCompleted
                                           ? isMarathi
@@ -993,7 +998,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                           : "Incomplete"}
                                       </span>
                                       <span className="text-[10px] font-semibold text-brand-muted">
-                                        {dayEvents.length}/4
+                                        {isAbsent ? "0/4" : `${dayEvents.length}/4`}
                                       </span>
                                       {!isToday && !isTargetDate && (
                                         <div className="p-0.5 text-brand-muted">
@@ -1054,9 +1059,16 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                               className="flex items-center justify-between p-2 rounded-lg bg-white/80 border border-white text-xs hover:border-brand-primary/40 transition-colors"
                                             >
                                               <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="font-bold text-brand-dark">
-                                                  {getEventName(evt.event_type)}
-                                                </span>
+                                                {evt.event_type === "ABSENT" ? (
+                                                  <span className="font-bold text-rose-700 flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                                    {getEventName(evt.event_type)}
+                                                  </span>
+                                                ) : (
+                                                  <span className="font-bold text-brand-dark">
+                                                    {getEventName(evt.event_type)}
+                                                  </span>
+                                                )}
                                                 <span className="text-brand-muted font-medium">
                                                   {evt.scanned_at_ist}
                                                 </span>

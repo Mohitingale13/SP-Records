@@ -238,6 +238,21 @@ class AttendanceService:
         if existing:
             return None, f"An attendance event of type '{event_type.value}' already exists for this date."
 
+        # If an ABSENT record exists for this date and a real punch is now being added, remove the ABSENT placeholder
+        if event_type.value != "ABSENT":
+            absent_record = (
+                db.query(AttendanceRecord)
+                .filter(
+                    AttendanceRecord.user_id == target_user_id,
+                    AttendanceRecord.event_date == event_date,
+                    AttendanceRecord.event_type == "ABSENT",
+                )
+                .first()
+            )
+            if absent_record:
+                db.delete(absent_record)
+                db.flush()
+
         # Defensive timezone normalization: if naive, treat as Kolkata time (IST)
         if scanned_at.tzinfo is None:
             scanned_at = scanned_at.replace(tzinfo=KOLKATA_TZ)
@@ -268,6 +283,77 @@ class AttendanceService:
                 "event_type": new_record.event_type,
                 "event_date": str(new_record.event_date),
                 "scanned_at": new_record.scanned_at.isoformat(),
+                "verification_method": "MANUAL_ADMIN",
+            },
+        )
+        db.add(audit_log)
+        db.commit()
+        db.refresh(new_record)
+
+        return new_record, None
+
+    @staticmethod
+    def admin_mark_staff_absent(
+        db: Session,
+        admin_user: User,
+        target_user_id: uuid.UUID,
+        event_date: date,
+        reason: str,
+    ) -> Tuple[Optional[AttendanceRecord], Optional[str]]:
+        """
+        Officially confirms and records a staff member's absence on a given date.
+        Prevents/removes irregularity flag and audits the action.
+        """
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            return None, "Target staff member not found."
+
+        if target_user.organization_id != admin_user.organization_id:
+            return None, "Unauthorized: Staff member belongs to another organization."
+
+        if target_user.role and target_user.role.name == "SUPER_ADMIN":
+            return None, "Super Administrators are exempt from personal attendance recording."
+
+        # Check if already marked ABSENT
+        existing_absent = (
+            db.query(AttendanceRecord)
+            .filter(
+                AttendanceRecord.user_id == target_user_id,
+                AttendanceRecord.event_date == event_date,
+                AttendanceRecord.event_type == "ABSENT",
+            )
+            .first()
+        )
+        if existing_absent:
+            return existing_absent, None
+
+        # Base timestamp at start of that date in Kolkata timezone
+        absent_time = datetime.combine(event_date, datetime.min.time()).replace(tzinfo=KOLKATA_TZ)
+
+        new_record = AttendanceRecord(
+            user_id=target_user_id,
+            organization_id=target_user.organization_id,
+            event_type="ABSENT",
+            event_date=event_date,
+            scanned_at=absent_time,
+            is_manually_corrected=True,
+            verified_distance_meters=None,
+            reported_accuracy_meters=None,
+            client_ip=None,
+            verification_method="MANUAL_ADMIN",
+        )
+        db.add(new_record)
+        db.flush()
+
+        audit_log = AttendanceAuditLog(
+            attendance_record_id=new_record.id,
+            actor_user_id=admin_user.id,
+            action=AuditAction.MANUAL_ADDITION.value,
+            reason=reason.strip() if reason else "Employee absent on this date (Confirmed by Admin)",
+            previous_state=None,
+            new_state={
+                "event_type": "ABSENT",
+                "event_date": str(event_date),
                 "verification_method": "MANUAL_ADMIN",
             },
         )

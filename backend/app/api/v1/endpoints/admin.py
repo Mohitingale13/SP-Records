@@ -14,6 +14,7 @@ from app.schemas.auth import AdminResetPinRequest
 from app.schemas.user import UserSchema, UserUpdateRoleRequest
 from app.schemas.attendance import (
     AttendanceManualCreateRequest,
+    AttendanceMarkAbsentRequest,
     AttendanceCorrectionRequest,
     AttendanceEventSchema,
     AttendanceStatusSummary,
@@ -195,6 +196,11 @@ def list_irregularities(
 
         for staff in staff_members:
             punches = day_user_events.get((staff.id, check_date), {})
+            absent_evt = punches.get(AttendanceEventType.ABSENT.value) or punches.get("ABSENT")
+            if absent_evt:
+                # The staff member's absence on this date is officially recorded and confirmed by Admin -> omit from irregularities!
+                continue
+
             in_evt = punches.get(AttendanceEventType.OFFICE_IN.value)
             l_out_evt = punches.get(AttendanceEventType.LUNCH_BREAK_OUT.value)
             l_in_evt = punches.get(AttendanceEventType.LUNCH_BREAK_IN.value)
@@ -344,6 +350,39 @@ def manual_add_event(
         event_date=payload.event_date,
         scanned_at=payload.scanned_at,
         reason=payload.reason,
+    )
+    if err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
+
+    return AttendanceEventSchema(
+        id=record.id,
+        event_type=record.event_type,
+        event_date=record.event_date,
+        scanned_at=record.scanned_at,
+        scanned_at_ist=format_kolkata_time(record.scanned_at),
+        is_manually_corrected=record.is_manually_corrected,
+        verified_distance_meters=record.verified_distance_meters,
+        reported_accuracy_meters=record.reported_accuracy_meters,
+        verification_method=record.verification_method,
+    )
+
+
+@router.post("/attendance/mark-absent", response_model=AttendanceEventSchema, summary="Mark staff member as absent for a date")
+def mark_staff_absent(
+    payload: AttendanceMarkAbsentRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Records an authorized ABSENT entry for the staff member on the specified date.
+    Removes any unresolved irregularity for this date and logs an admin audit trail.
+    """
+    record, err = AttendanceService.admin_mark_staff_absent(
+        db,
+        admin_user=current_admin,
+        target_user_id=payload.user_id,
+        event_date=payload.event_date,
+        reason=payload.reason or "Confirmed absent by administrator",
     )
     if err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)

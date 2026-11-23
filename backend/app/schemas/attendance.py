@@ -43,6 +43,12 @@ class AttendanceManualCreateRequest(BaseModel):
     reason: str = Field(..., min_length=5, description="Mandatory audit justification for manual attendance entry")
 
 
+class AttendanceMarkAbsentRequest(BaseModel):
+    user_id: uuid.UUID
+    event_date: date
+    reason: Optional[str] = Field("Employee absent on this date (Confirmed by Admin)", min_length=3)
+
+
 class AttendanceCorrectionRequest(BaseModel):
     record_id: uuid.UUID
     new_event_type: Optional[AttendanceEventType] = None

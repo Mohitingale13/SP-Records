@@ -17,6 +17,7 @@ class AttendanceEventType(str, enum.Enum):
     LUNCH_BREAK_OUT = "LUNCH_BREAK_OUT"
     LUNCH_BREAK_IN = "LUNCH_BREAK_IN"
     OFFICE_OUT = "OFFICE_OUT"
+    ABSENT = "ABSENT"
 
 
 class AttendanceRecord(Base):

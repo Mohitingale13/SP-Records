@@ -175,6 +175,15 @@ export const adminAPI = {
     return res.data;
   },
 
+  markAbsent: async (data: {
+    user_id: string;
+    event_date: string;
+    reason?: string;
+  }): Promise<AttendanceEvent> => {
+    const res = await apiClient.post<AttendanceEvent>("/admin/attendance/mark-absent", data);
+    return res.data;
+  },
+
   correct: async (data: {
     record_id: string;
     new_event_type?: string;

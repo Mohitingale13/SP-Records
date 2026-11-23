@@ -16,7 +16,9 @@ import {
   RefreshCw,
   AlertCircle,
   X,
+  UserX,
 } from "lucide-react";
+import { ScrollTimePicker } from "../../components/common/ScrollTimePicker";
 
 export const IrregularitiesScreen: React.FC = () => {
   const { t, language } = useLanguage();
@@ -36,6 +38,12 @@ export const IrregularitiesScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [adjustSuccess, setAdjustSuccess] = useState<string | null>(null);
+
+  // Mark Absent Modal State
+  const [absentItem, setAbsentItem] = useState<IrregularityItem | null>(null);
+  const [absentReason, setAbsentReason] = useState("");
+  const [isSubmittingAbsent, setIsSubmittingAbsent] = useState(false);
+  const [absentError, setAbsentError] = useState<string | null>(null);
 
   const fetchIrregularities = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
@@ -66,6 +74,51 @@ export const IrregularitiesScreen: React.FC = () => {
   const handleOpenDaySettings = (item: IrregularityItem) => {
     // Navigate to Past Records (/history) with Staff Tab, staff member, and date pre-selected
     navigate(`/history?tab=staff&userId=${item.user_id}&date=${item.date}`);
+  };
+
+  const handleOpenMarkAbsent = (item: IrregularityItem) => {
+    setAbsentItem(item);
+    setAbsentReason(
+      isMarathi
+        ? `${item.user_name} या दिवशी गैरहजर (अनुपस्थित) होते.`
+        : `${item.user_name} was absent on this date.`
+    );
+    setAbsentError(null);
+  };
+
+  const handleConfirmMarkAbsent = async () => {
+    if (!absentItem) return;
+    setIsSubmittingAbsent(true);
+    setAbsentError(null);
+    try {
+      await adminAPI.markAbsent({
+        user_id: absentItem.user_id,
+        event_date: absentItem.date,
+        reason: absentReason.trim() || "Confirmed absent by administrator",
+      });
+
+      // Immediately remove this entry from UI so it vanishes
+      setIrregularities((prev) => prev.filter((i) => i.id !== absentItem.id));
+      setCounts((prev) => ({
+        ...prev,
+        total: Math.max(0, prev.total - 1),
+        notMarked: absentItem.type === "NOT_MARKED" ? Math.max(0, prev.notMarked - 1) : prev.notMarked,
+        missingCheckouts: absentItem.type === "MISSING_CHECKOUT" ? Math.max(0, prev.missingCheckouts - 1) : prev.missingCheckouts,
+      }));
+
+      setAdjustSuccess(
+        isMarathi
+          ? `${absentItem.user_name} यांच्यासाठी गैरहजर नोंद यशस्वीरित्या जतन झाली.`
+          : `${absentItem.user_name} marked as Absent. Entry resolved.`
+      );
+      setAbsentItem(null);
+      setTimeout(() => setAdjustSuccess(null), 4000);
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setAbsentError(typeof detail === "string" ? detail : "Failed to mark as absent.");
+    } finally {
+      setIsSubmittingAbsent(false);
+    }
   };
 
   const handleOpenQuickAdjust = (item: IrregularityItem) => {
@@ -298,25 +351,71 @@ export const IrregularitiesScreen: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons: Land on Day's Settings or Quick Adjust */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-brand-dark/10">
-                <Button
-                  variant="secondary"
-                  onClick={() => handleOpenQuickAdjust(item)}
-                  className="w-full !py-1.5 text-xs font-bold border-brand-primary/40 hover:bg-brand-primary/10 flex items-center justify-center gap-1.5"
-                  icon={<Edit2 className="w-3.5 h-3.5 text-brand-primary" />}
-                >
-                  {t.quickAdjust}
-                </Button>
+              {/* Action Buttons: Land on Day's Settings, Quick Adjust, or Mark as Absent */}
+              <div className="space-y-2 pt-2 border-t border-brand-dark/10">
+                {item.type === "NOT_MARKED" ? (
+                  <>
+                    <Button
+                      variant="danger"
+                      onClick={() => handleOpenMarkAbsent(item)}
+                      className="w-full !py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-1.5 shadow-sm"
+                      icon={<UserX className="w-3.5 h-3.5" />}
+                    >
+                      {t.markAsAbsent}
+                    </Button>
 
-                <Button
-                  variant="primary"
-                  onClick={() => handleOpenDaySettings(item)}
-                  className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
-                  icon={<ArrowRight className="w-3.5 h-3.5" />}
-                >
-                  {t.openDaySettings}
-                </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleOpenQuickAdjust(item)}
+                        className="w-full !py-1.5 text-xs font-bold border-brand-primary/40 hover:bg-brand-primary/10 flex items-center justify-center gap-1.5"
+                        icon={<Edit2 className="w-3.5 h-3.5 text-brand-primary" />}
+                      >
+                        {t.quickAdjust}
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleOpenDaySettings(item)}
+                        className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                        icon={<ArrowRight className="w-3.5 h-3.5" />}
+                      >
+                        {t.openDaySettings}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="primary"
+                        onClick={() => handleOpenQuickAdjust(item)}
+                        className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
+                        icon={<Edit2 className="w-3.5 h-3.5" />}
+                      >
+                        {t.quickAdjust}
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleOpenDaySettings(item)}
+                        className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                        icon={<ArrowRight className="w-3.5 h-3.5" />}
+                      >
+                        {t.openDaySettings}
+                      </Button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenMarkAbsent(item)}
+                      className="w-full py-1 text-[11px] font-semibold text-rose-700 hover:text-rose-900 hover:underline flex items-center justify-center gap-1"
+                    >
+                      <UserX className="w-3 h-3 text-rose-600" />
+                      <span>{isMarathi ? "कर्मचारी गैरहजर होते? गैरहजर नोंदवा" : "Staff was absent? Mark as Absent"}</span>
+                    </button>
+                  </>
+                )}
               </div>
             </GlassCard>
           ))}
@@ -373,18 +472,13 @@ export const IrregularitiesScreen: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-brand-muted mb-1">
-                  {t.time} (24-hour HH:MM)
-                </label>
-                <input
-                  type="time"
-                  value={adjustTime}
-                  onChange={(e) => setAdjustTime(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg bg-white/70 border border-brand-dark/20 text-brand-dark font-semibold outline-none"
-                  required
-                />
-              </div>
+              {/* Infinite Scroll Time Picker Clock */}
+              <ScrollTimePicker
+                value={adjustTime}
+                onChange={setAdjustTime}
+                label={t.time}
+                isMarathi={isMarathi}
+              />
 
               <div>
                 <label className="block text-[10px] font-bold text-brand-muted mb-1">
@@ -418,7 +512,95 @@ export const IrregularitiesScreen: React.FC = () => {
                   {t.saveAdjustment}
                 </Button>
               </div>
+
+              <div className="pt-2 border-t border-brand-dark/10 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = adjustItem;
+                    setAdjustItem(null);
+                    if (itm) handleOpenMarkAbsent(itm);
+                  }}
+                  className="text-xs text-rose-700 hover:text-rose-900 font-semibold hover:underline inline-flex items-center gap-1"
+                >
+                  <UserX className="w-3.5 h-3.5" />
+                  <span>{isMarathi ? "किंवा या दिवसासाठी गैरहजर नोंदवा" : "Or mark staff as Absent for this date"}</span>
+                </button>
+              </div>
             </form>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Mark As Absent Modal */}
+      {absentItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
+          <GlassCard className="w-full max-w-sm relative !p-5 border-white/80 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-brand-dark/10 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-500/15 text-rose-700 border border-rose-500/30">
+                  <UserX className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-brand-dark uppercase tracking-wider">
+                    {t.markAsAbsent}
+                  </h3>
+                  <p className="text-[11px] text-brand-muted font-medium">
+                    {absentItem.user_name} • {absentItem.date}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAbsentItem(null)}
+                className="p-1.5 rounded-full hover:bg-black/10 text-brand-dark transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {absentError && (
+              <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-800 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{absentError}</span>
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 font-medium">
+              {t.markAsAbsentConfirm}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-brand-dark">
+                {t.auditReason}
+              </label>
+              <textarea
+                rows={2}
+                value={absentReason}
+                onChange={(e) => setAbsentReason(e.target.value)}
+                className="glass-input text-xs"
+                placeholder={isMarathi ? "उदा. रजेवर, आजारी, गैरहजर..." : "e.g. On authorized leave, sick, absent..."}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setAbsentItem(null)}
+                className="w-1/2 !py-2 text-xs font-bold"
+              >
+                {isMarathi ? "रद्द करा" : "Cancel"}
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmMarkAbsent}
+                isLoading={isSubmittingAbsent}
+                className="w-1/2 !py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+              >
+                {isMarathi ? "गैरहजर नोंदवा" : "Confirm Absent"}
+              </Button>
+            </div>
           </GlassCard>
         </div>
       )}

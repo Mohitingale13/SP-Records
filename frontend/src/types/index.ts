@@ -12,7 +12,8 @@ export type AttendanceEventType =
   | "OFFICE_IN"
   | "LUNCH_BREAK_OUT"
   | "LUNCH_BREAK_IN"
-  | "OFFICE_OUT";
+  | "OFFICE_OUT"
+  | "ABSENT";
 
 export type AttendanceStatus =
   | "NOT_STARTED"

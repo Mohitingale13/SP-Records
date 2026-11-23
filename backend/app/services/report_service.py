@@ -489,7 +489,10 @@ class ReportService:
 
                         # Calculate productive work duration strictly excluding lunch break
                         day_sec = calculate_work_seconds(in_evt, l_out_evt, l_in_evt, out_evt)
-                        if out_evt:
+                        if day_dict.get("ABSENT") and not in_evt:
+                            status_str = f"<font color='#DC2626'><b>{L['status_absent']}</b></font>"
+                            hours_str = "—"
+                        elif out_evt:
                             status_str = f"<font color='#008080'><b>{L['status_completed']}{correction_flag}</b></font>"
                             hours_str = format_duration(day_sec, is_marathi)
                             if user_id in user_completed_days:

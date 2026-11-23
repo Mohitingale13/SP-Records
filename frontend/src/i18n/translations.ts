@@ -193,6 +193,9 @@ export interface Translations {
   time: string;
   auditReason: string;
   adjustmentSuccess: string;
+  markAsAbsent: string;
+  markAsAbsentConfirm: string;
+  markedAbsentSuccess: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -389,6 +392,9 @@ export const translations: Record<Language, Translations> = {
     time: "Punch Time",
     auditReason: "Reason for Adjustment",
     adjustmentSuccess: "Attendance adjusted and recalculation saved successfully!",
+    markAsAbsent: "Mark as Absent",
+    markAsAbsentConfirm: "Confirm marking this staff member as Absent for the entire day? This will clear the irregularity.",
+    markedAbsentSuccess: "Staff member marked as Absent successfully.",
   },
   mr: {
     appName: "शिवम पतसंस्था",
@@ -583,5 +589,8 @@ export const translations: Record<Language, Translations> = {
     time: "वेळ",
     auditReason: "बदलाचे कारण",
     adjustmentSuccess: "हजेरी वेळ यशस्वीरीत्या अद्ययावत केली गेली!",
+    markAsAbsent: "गैरहजर नोंदवा",
+    markAsAbsentConfirm: "या कर्मचाऱ्याला या दिवसासाठी गैरहजर म्हणून नोंदवायचे का? यामुळे ही अनियमितता दूर होईल.",
+    markedAbsentSuccess: "कर्मचारी यशस्वीरीत्या गैरहजर नोंदवले गेले.",
   },
 };

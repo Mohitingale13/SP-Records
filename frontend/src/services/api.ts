@@ -169,7 +169,7 @@ export const adminAPI = {
     event_type: string;
     event_date: string;
     scanned_at: string;
-    reason: string;
+    reason?: string;
   }): Promise<AttendanceEvent> => {
     const res = await apiClient.post<AttendanceEvent>("/admin/attendance/manual-add", data);
     return res.data;
@@ -188,7 +188,7 @@ export const adminAPI = {
     record_id: string;
     new_event_type?: string;
     new_scanned_at?: string;
-    reason: string;
+    reason?: string;
   }): Promise<AttendanceEvent> => {
     const res = await apiClient.put<AttendanceEvent>("/admin/attendance/correct", data);
     return res.data;
@@ -212,11 +212,11 @@ export const adminAPI = {
     return res.data;
   },
 
-  resetPin: async (userId: string, newPin: string, confirmPin: string, reason: string) => {
+  resetPin: async (userId: string, newPin: string, confirmPin: string, reason?: string) => {
     const res = await apiClient.post(`/admin/users/${userId}/reset-pin`, {
       new_pin: newPin,
       confirm_pin: confirmPin,
-      reason,
+      reason: reason || "Administrative PIN reset",
     });
     return res.data;
   },

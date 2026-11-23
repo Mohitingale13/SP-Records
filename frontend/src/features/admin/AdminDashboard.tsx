@@ -17,7 +17,6 @@ import {
   QrCode,
   Calendar,
   RefreshCw,
-  AlertTriangle,
   AlertCircle,
   FileDown,
   CheckCircle2,
@@ -72,7 +71,6 @@ export const AdminDashboard: React.FC = () => {
   const [resetPinStaff, setResetPinStaff] = useState<{ id: string; full_name: string; phone_number: string } | null>(null);
   const [newStaffPin, setNewStaffPin] = useState("");
   const [confirmStaffPin, setConfirmStaffPin] = useState("");
-  const [resetPinReason, setResetPinReason] = useState("");
   const [isSubmittingResetPin, setIsSubmittingResetPin] = useState(false);
   const [resetPinError, setResetPinError] = useState<string | null>(null);
   const [showNewStaffPin, setShowNewStaffPin] = useState(false);
@@ -83,7 +81,6 @@ export const AdminDashboard: React.FC = () => {
   const [editLat, setEditLat] = useState("");
   const [editLon, setEditLon] = useState("");
   const [editRadius, setEditRadius] = useState("");
-  const [locationReason, setLocationReason] = useState("");
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
@@ -185,19 +182,14 @@ export const AdminDashboard: React.FC = () => {
       setResetPinError(t.pinsDoNotMatch);
       return;
     }
-    if (!resetPinReason.trim()) {
-      setResetPinError("Please provide an administrative reason for the PIN reset.");
-      return;
-    }
 
     setIsSubmittingResetPin(true);
     try {
-      await adminAPI.resetPin(resetPinStaff.id, newStaffPin, confirmStaffPin, resetPinReason.trim());
+      await adminAPI.resetPin(resetPinStaff.id, newStaffPin, confirmStaffPin, "Administrative PIN reset");
       setActionSuccess(`${t.resetPinSuccess} (${resetPinStaff.full_name})`);
       setResetPinStaff(null);
       setNewStaffPin("");
       setConfirmStaffPin("");
-      setResetPinReason("");
       setTimeout(() => setActionSuccess(null), 4000);
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -276,10 +268,6 @@ export const AdminDashboard: React.FC = () => {
 
   const handleUpdateLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!locationReason || locationReason.trim().length < 5) {
-      setLocationError("Please enter a valid justification (minimum 5 characters).");
-      return;
-    }
     const lat = parseFloat(editLat);
     const lon = parseFloat(editLon);
     const rad = parseFloat(editRadius);
@@ -305,11 +293,10 @@ export const AdminDashboard: React.FC = () => {
         office_latitude: lat,
         office_longitude: lon,
         geofence_radius_meters: rad,
-        reason: locationReason.trim(),
+        reason: "Office location updated by administrator",
       });
       setOfficeLocation(updated);
       setIsEditingLocation(false);
-      setLocationReason("");
       setLocationSuccess("Office coordinates & geofence updated successfully!");
       setTimeout(() => setLocationSuccess(null), 4000);
     } catch (err: any) {
@@ -767,7 +754,6 @@ export const AdminDashboard: React.FC = () => {
                             setResetPinError(null);
                             setNewStaffPin("");
                             setConfirmStaffPin("");
-                            setResetPinReason("");
                           }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 transition-all flex items-center gap-1"
                           title={t.resetPinButton}
@@ -925,21 +911,6 @@ export const AdminDashboard: React.FC = () => {
                     className="glass-input text-xs w-full font-mono"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-brand-dark block mb-1">
-                  Audit Justification / Reason (Mandatory)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Relocated to newly inaugurated branch premises"
-                  value={locationReason}
-                  onChange={(e) => setLocationReason(e.target.value)}
-                  required
-                  minLength={5}
-                  className="glass-input text-xs w-full"
-                />
               </div>
 
               <div className="flex justify-end gap-2">
@@ -1151,21 +1122,6 @@ export const AdminDashboard: React.FC = () => {
                   value={confirmStaffPin}
                   onChange={(e) => setConfirmStaffPin(e.target.value.replace(/\D/g, ""))}
                   className="glass-input text-sm font-bold tracking-widest"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{t.resetPinReason}</span>
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Employee forgot PIN; identity verified by branch manager"
-                  value={resetPinReason}
-                  onChange={(e) => setResetPinReason(e.target.value)}
-                  className="glass-input text-xs"
                   required
                 />
               </div>

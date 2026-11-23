@@ -467,7 +467,7 @@ def update_office_location(
         attendance_record_id=None,
         actor_user_id=current_super_admin.id,
         action="UPDATE_OFFICE_GEOFENCE",
-        reason=payload.reason.strip(),
+        reason=(payload.reason or "").strip() or "Office location update by administrator",
         previous_state={"latitude": old_lat, "longitude": old_lon, "radius": old_radius},
         new_state={"latitude": payload.office_latitude, "longitude": payload.office_longitude, "radius": payload.geofence_radius_meters},
     )

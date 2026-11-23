@@ -34,14 +34,12 @@ export const IrregularitiesScreen: React.FC = () => {
   const [adjustItem, setAdjustItem] = useState<IrregularityItem | null>(null);
   const [adjustEventType, setAdjustEventType] = useState<AttendanceEventType>("OFFICE_OUT");
   const [adjustTime, setAdjustTime] = useState("18:00");
-  const [adjustReason, setAdjustReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [adjustSuccess, setAdjustSuccess] = useState<string | null>(null);
 
   // Mark Absent Modal State
   const [absentItem, setAbsentItem] = useState<IrregularityItem | null>(null);
-  const [absentReason, setAbsentReason] = useState("");
   const [isSubmittingAbsent, setIsSubmittingAbsent] = useState(false);
   const [absentError, setAbsentError] = useState<string | null>(null);
 
@@ -78,11 +76,6 @@ export const IrregularitiesScreen: React.FC = () => {
 
   const handleOpenMarkAbsent = (item: IrregularityItem) => {
     setAbsentItem(item);
-    setAbsentReason(
-      isMarathi
-        ? `${item.user_name} या दिवशी गैरहजर (अनुपस्थित) होते.`
-        : `${item.user_name} was absent on this date.`
-    );
     setAbsentError(null);
   };
 
@@ -94,7 +87,7 @@ export const IrregularitiesScreen: React.FC = () => {
       await adminAPI.markAbsent({
         user_id: absentItem.user_id,
         event_date: absentItem.date,
-        reason: absentReason.trim() || "Confirmed absent by administrator",
+        reason: "Confirmed absent by administrator",
       });
 
       // Immediately remove this entry from UI so it vanishes
@@ -124,11 +117,6 @@ export const IrregularitiesScreen: React.FC = () => {
   const handleOpenQuickAdjust = (item: IrregularityItem) => {
     setAdjustItem(item);
     setAdjustError(null);
-    setAdjustReason(
-      item.type === "MISSING_CHECKOUT"
-        ? (isMarathi ? "कर्मचारी संध्याकाळी चेक-आउट करायचे विसरले" : "Employee forgot to check out")
-        : (isMarathi ? "कार्यालयीन हजेरी नोंद अद्ययावत" : "Authorized manual attendance record")
-    );
     if (item.type === "MISSING_CHECKOUT") {
       setAdjustEventType("OFFICE_OUT");
       setAdjustTime("18:00");
@@ -141,14 +129,6 @@ export const IrregularitiesScreen: React.FC = () => {
   const handleSubmitAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustItem) return;
-    if (!adjustReason || adjustReason.trim().length < 5) {
-      setAdjustError(
-        isMarathi
-          ? "कृपया किमान ५ अक्षरांचे वैध कारण प्रविष्ट करा."
-          : "Please enter a valid reason (minimum 5 characters)."
-      );
-      return;
-    }
 
     setIsSubmitting(true);
     setAdjustError(null);
@@ -163,7 +143,7 @@ export const IrregularitiesScreen: React.FC = () => {
         event_type: adjustEventType,
         event_date: adjustItem.date,
         scanned_at: dt.toISOString(),
-        reason: adjustReason.trim(),
+        reason: "Manual adjustment from Irregularities",
       });
 
       setAdjustSuccess(t.adjustmentSuccess);
@@ -480,20 +460,6 @@ export const IrregularitiesScreen: React.FC = () => {
                 isMarathi={isMarathi}
               />
 
-              <div>
-                <label className="block text-[10px] font-bold text-brand-muted mb-1">
-                  {t.auditReason} (Required)
-                </label>
-                <textarea
-                  value={adjustReason}
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                  rows={2}
-                  className="w-full px-2.5 py-2 rounded-lg bg-white/70 border border-brand-dark/20 text-brand-dark font-medium outline-none text-xs"
-                  placeholder={isMarathi ? "उदा. चेक-आउट नोंद विसरले" : "e.g. Employee forgot to punch out"}
-                  required
-                />
-              </div>
-
               <div className="flex items-center gap-2 pt-2">
                 <Button
                   type="button"
@@ -568,19 +534,6 @@ export const IrregularitiesScreen: React.FC = () => {
 
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 font-medium">
               {t.markAsAbsentConfirm}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-brand-dark">
-                {t.auditReason}
-              </label>
-              <textarea
-                rows={2}
-                value={absentReason}
-                onChange={(e) => setAbsentReason(e.target.value)}
-                className="glass-input text-xs"
-                placeholder={isMarathi ? "उदा. रजेवर, आजारी, गैरहजर..." : "e.g. On authorized leave, sick, absent..."}
-              />
             </div>
 
             <div className="flex items-center gap-2 pt-1">

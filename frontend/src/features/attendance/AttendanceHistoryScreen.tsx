@@ -112,7 +112,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const [manualDate, setManualDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [manualEventType, setManualEventType] = useState("OFFICE_IN");
   const [manualTime, setManualTime] = useState("09:30");
-  const [manualReason, setManualReason] = useState("");
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
 
@@ -123,7 +122,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
   } | null>(null);
   const [correctionTime, setCorrectionTime] = useState("09:30");
   const [correctionEventType, setCorrectionEventType] = useState("OFFICE_IN");
-  const [correctionReason, setCorrectionReason] = useState("");
   const [isSubmittingCorrection, setIsSubmittingCorrection] = useState(false);
   const [correctionError, setCorrectionError] = useState<string | null>(null);
 
@@ -131,7 +129,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const [resetPinStaff, setResetPinStaff] = useState<UserSummary | null>(null);
   const [newStaffPin, setNewStaffPin] = useState("");
   const [confirmStaffPin, setConfirmStaffPin] = useState("");
-  const [resetPinReason, setResetPinReason] = useState("");
   const [isSubmittingResetPin, setIsSubmittingResetPin] = useState(false);
   const [resetPinError, setResetPinError] = useState<string | null>(null);
   const [showNewStaffPin, setShowNewStaffPin] = useState(false);
@@ -444,11 +441,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
     if (!manualAddStaff) return;
     setManualError(null);
 
-    if (!manualReason || manualReason.trim().length < 5) {
-      setManualError(isMarathi ? "कृपया नोंदीचे स्पष्ट कारण प्रविष्ट करा." : "Please provide a clear written reason for manual adjustment.");
-      return;
-    }
-
     setIsSubmittingManual(true);
     try {
       const timestampIso = `${manualDate}T${manualTime}:00+05:30`;
@@ -457,7 +449,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
         event_type: manualEventType,
         event_date: manualDate,
         scanned_at: timestampIso,
-        reason: manualReason.trim(),
+        reason: "Manual adjustment by administrator",
       });
       showNotification(
         isMarathi
@@ -465,7 +457,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
           : `Record added for ${manualAddStaff.full_name}`
       );
       setManualAddStaff(null);
-      setManualReason("");
       // Refresh individual history
       await fetchIndividualStaffHistory(manualAddStaff.id, true);
     } catch (err: any) {
@@ -481,11 +472,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
     if (!correctingEvent) return;
     setCorrectionError(null);
 
-    if (!correctionReason || correctionReason.trim().length < 5) {
-      setCorrectionError(isMarathi ? "कृपया दुरुस्तीचे ठोस कारण प्रविष्ट करा." : "Please provide a clear written justification for correcting this timestamp.");
-      return;
-    }
-
     setIsSubmittingCorrection(true);
     try {
       const eventDate = correctingEvent.event.event_date;
@@ -495,7 +481,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
         record_id: correctingEvent.event.id,
         new_event_type: correctionEventType,
         new_scanned_at: timestampIso,
-        reason: correctionReason.trim(),
+        reason: "Correction by administrator",
       });
 
       showNotification(t.correctSuccess);
@@ -524,14 +510,10 @@ export const AttendanceHistoryScreen: React.FC = () => {
       setResetPinError(t.pinsDoNotMatch);
       return;
     }
-    if (!resetPinReason || resetPinReason.trim().length < 4) {
-      setResetPinError("Please provide a valid administrative reason.");
-      return;
-    }
 
     setIsSubmittingResetPin(true);
     try {
-      await adminAPI.resetPin(resetPinStaff.id, newStaffPin, confirmStaffPin, resetPinReason.trim());
+      await adminAPI.resetPin(resetPinStaff.id, newStaffPin, confirmStaffPin, "Administrative PIN reset");
       showNotification(
         isMarathi
           ? `${resetPinStaff.full_name} यांचा पिन यशस्वीरित्या रीसेट करण्यात आला.`
@@ -540,7 +522,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
       setResetPinStaff(null);
       setNewStaffPin("");
       setConfirmStaffPin("");
-      setResetPinReason("");
     } catch (err: any) {
       setResetPinError(err.response?.data?.detail || "Failed to reset PIN.");
     } finally {
@@ -885,7 +866,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                               setManualAddStaff(staff);
                               setManualDate(paramDate || todayStr);
                               setManualError(null);
-                              setManualReason("");
                             }}
                             className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-brand-primary/15 text-brand-dark hover:bg-brand-primary/25 transition-all flex items-center gap-1"
                             title="Add missing attendance scan"
@@ -1038,11 +1018,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                               setManualDate(dateStr);
                                               setManualEventType("OFFICE_IN");
                                               setManualTime("10:00");
-                                              setManualReason(
-                                                isMarathi
-                                                  ? "कार्यालयीन हजेरी नोंद"
-                                                  : "Authorized manual attendance"
-                                              );
                                               setManualError(null);
                                             }}
                                             className="!py-1.5 !px-3 text-xs font-bold mx-auto"
@@ -1105,7 +1080,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                                   setCorrectionTime(
                                                     parseIstTimeTo24h(evt.scanned_at_ist, evt.scanned_at)
                                                   );
-                                                  setCorrectionReason("");
                                                   setCorrectionError(null);
                                                 }}
                                                 className="p-1.5 rounded-md bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all"
@@ -1146,11 +1120,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                                                 }
                                                 setManualEventType(nextEvt);
                                                 setManualTime(defaultTime);
-                                                setManualReason(
-                                                  isMarathi
-                                                    ? "चेक-आउट नोंद विसरले"
-                                                    : "Employee forgot to check out"
-                                                );
                                                 setManualError(null);
                                               }}
                                               className="w-full py-1.5 px-2 text-[11px] font-semibold rounded-lg bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-dark transition-all flex items-center justify-center gap-1 border border-brand-primary/25 mt-2"
@@ -1244,21 +1213,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 isMarathi={isMarathi}
               />
 
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{isMarathi ? "नोंदीचे कारण (अनिवार्य)" : "Mandatory Written Reason"}</span>
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder={isMarathi ? "उदा. फोन बिघाड, काउंटर गर्दी, अधिकृत कामासाठी बाहेर..." : "Reason for manual entry (e.g. phone camera issue, approved field work)..."}
-                  value={manualReason}
-                  onChange={(e) => setManualReason(e.target.value)}
-                  className="glass-input text-xs"
-                  required
-                />
-              </div>
-
               <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
@@ -1334,21 +1288,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 label={isMarathi ? "दुरुस्त वेळ निवडा (घड्याळ)" : "Select Corrected Time"}
                 isMarathi={isMarathi}
               />
-
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{isMarathi ? "दुरुस्तीचे कारण (अनिवार्य)" : "Mandatory Correction Reason"}</span>
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder={isMarathi ? "उदा. वेळेची नोंद विलंबाने झाली, व्यवस्थापकांनी तपासणी केली..." : "Explain why timestamp is being modified (e.g. Verified with CCTV/register)..."}
-                  value={correctionReason}
-                  onChange={(e) => setCorrectionReason(e.target.value)}
-                  className="glass-input text-xs"
-                  required
-                />
-              </div>
 
               <div className="flex gap-2 pt-2">
                 <Button
@@ -1444,21 +1383,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-brand-dark mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{t.resetPinReason}</span>
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder={isMarathi ? "उदा. कर्मचारी पिन विसरले..." : "e.g. Staff requested reset after forgotten PIN..."}
-                  value={resetPinReason}
-                  onChange={(e) => setResetPinReason(e.target.value)}
-                  className="glass-input text-xs"
-                  required
-                />
-              </div>
-
               <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
@@ -1535,7 +1459,6 @@ export const AttendanceHistoryScreen: React.FC = () => {
                   setResetPinError(null);
                   setNewStaffPin("");
                   setConfirmStaffPin("");
-                  setResetPinReason("");
                 }}
                 className="w-full p-4 rounded-xl bg-amber-50 hover:bg-amber-100/70 border border-amber-300 text-amber-950 font-bold text-xs flex items-center justify-between transition-all shadow-xs active:scale-[0.99] group text-left"
               >

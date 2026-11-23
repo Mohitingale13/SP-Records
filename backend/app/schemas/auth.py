@@ -66,7 +66,7 @@ class AdminResetPinRequest(BaseModel):
     user_id: uuid.UUID
     new_pin: str = Field(..., description="New six-digit numeric PIN")
     confirm_pin: str = Field(..., description="Confirm new six-digit numeric PIN")
-    reason: str = Field(..., min_length=5, max_length=500, description="Mandatory written justification for PIN reset")
+    reason: Optional[str] = Field("Administrative PIN reset", description="Audit justification for PIN reset")
 
     @field_validator("new_pin", "confirm_pin")
     @classmethod

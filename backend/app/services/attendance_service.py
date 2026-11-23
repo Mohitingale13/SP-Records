@@ -277,7 +277,7 @@ class AttendanceService:
             attendance_record_id=new_record.id,
             actor_user_id=admin_user.id,
             action=AuditAction.MANUAL_ADDITION.value,
-            reason=reason.strip(),
+            reason=(reason or "").strip() or "Manual adjustment by administrator",
             previous_state=None,
             new_state={
                 "event_type": new_record.event_type,
@@ -425,7 +425,7 @@ class AttendanceService:
             attendance_record_id=record.id,
             actor_user_id=admin_user.id,
             action=AuditAction.CORRECTION.value,
-            reason=reason.strip(),
+            reason=(reason or "").strip() or "Correction by administrator",
             previous_state=previous_state,
             new_state=new_state,
         )

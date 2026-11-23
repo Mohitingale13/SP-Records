@@ -40,20 +40,20 @@ class AttendanceManualCreateRequest(BaseModel):
     event_type: AttendanceEventType
     event_date: date
     scanned_at: datetime
-    reason: str = Field(..., min_length=5, description="Mandatory audit justification for manual attendance entry")
+    reason: Optional[str] = Field("Manual adjustment by administrator", description="Audit justification for manual attendance entry")
 
 
 class AttendanceMarkAbsentRequest(BaseModel):
     user_id: uuid.UUID
     event_date: date
-    reason: Optional[str] = Field("Employee absent on this date (Confirmed by Admin)", min_length=3)
+    reason: Optional[str] = Field("Employee absent on this date (Confirmed by Admin)", description="Audit justification for marking absent")
 
 
 class AttendanceCorrectionRequest(BaseModel):
     record_id: uuid.UUID
     new_event_type: Optional[AttendanceEventType] = None
     new_scanned_at: Optional[datetime] = None
-    reason: str = Field(..., min_length=5, description="Mandatory audit justification for correction")
+    reason: Optional[str] = Field("Correction by administrator", description="Audit justification for correction")
 
 
 class OfficeLocationResponse(BaseModel):
@@ -69,7 +69,7 @@ class OfficeLocationUpdateRequest(BaseModel):
     office_latitude: float = Field(..., ge=-90.0, le=90.0)
     office_longitude: float = Field(..., ge=-180.0, le=180.0)
     geofence_radius_meters: float = Field(..., gt=0.0, le=10000.0)
-    reason: str = Field(..., min_length=5, description="Audit justification for altering official office geofence")
+    reason: Optional[str] = Field("Office location updated by administrator", description="Audit justification for altering official office geofence")
 
 
 class OfflineAttendanceItem(BaseModel):

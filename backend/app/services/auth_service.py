@@ -196,7 +196,7 @@ class AuthService:
         audit_log = AttendanceAuditLog(
             actor_user_id=admin_user.id,
             action="PIN_RESET",
-            reason=reason.strip(),
+            reason=(reason or "").strip() or "Administrative PIN reset",
             previous_state={"target_user_id": str(target_user.id), "phone": target_user.phone_number},
             new_state={"status": "PIN_RESET_COMPLETED", "reset_at": utc_now().isoformat()},
         )

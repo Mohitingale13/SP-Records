@@ -99,3 +99,10 @@ class OfflineSyncResponse(BaseModel):
     already_exists_count: int
     failed_count: int
     results: List[OfflineSyncResultItem]
+
+
+class MemberIrregularityActionRequest(BaseModel):
+    irregularity_id: str = Field(..., min_length=5, max_length=120)
+    event_date: date
+    irregularity_type: str = Field(..., min_length=3, max_length=40)
+    action: str = Field(..., pattern="^(REPORTED|IGNORED)$")

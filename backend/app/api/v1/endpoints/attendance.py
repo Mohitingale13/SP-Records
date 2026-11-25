@@ -6,14 +6,17 @@ from app.db.session import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.attendance import AttendanceRecord
+from app.models.irregularity_action import IrregularityActionStatus
 from app.schemas.attendance import (
     AttendanceScanRequest,
     AttendanceEventSchema,
     AttendanceStatusSummary,
     OfflineSyncRequest,
     OfflineSyncResponse,
+    MemberIrregularityActionRequest,
 )
 from app.services.attendance_service import AttendanceService
+from app.services.irregularity_service import IrregularityService
 from app.services.location_service import LocationService
 from app.core.timezone import format_kolkata_time
 
@@ -113,3 +116,48 @@ def get_own_history(
         )
         for r in records
     ]
+
+
+@router.get("/irregularities", summary="Get personal attendance irregularities for the logged-in member")
+def get_own_irregularities(
+    days: int = Query(30, ge=1, le=90),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns attendance irregularities for the logged-in member (missing checkout, not marked,
+    incomplete break, or uncommon timestamps +- 1-2 mins apart).
+    Items ignored by the member are omitted from their personal view.
+    """
+    return IrregularityService.get_irregularities(
+        db=db,
+        organization_id=current_user.organization_id,
+        days=days,
+        target_user_id=current_user.id,
+        for_member=True,
+    )
+
+
+@router.post("/irregularities/action", summary="Report an irregularity to Admin or Ignore it")
+def act_on_own_irregularity(
+    payload: MemberIrregularityActionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Allows a member to either REPORT an irregularity to the Admin (surfacing a badge/alert)
+    or IGNORE it from their own list.
+    """
+    action_enum = IrregularityActionStatus(payload.action)
+    record = IrregularityService.record_member_action(
+        db=db,
+        user=current_user,
+        irregularity_id=payload.irregularity_id,
+        event_date=payload.event_date,
+        irregularity_type=payload.irregularity_type,
+        action=action_enum,
+    )
+    return {
+        "irregularity_id": record.irregularity_id,
+        "status": record.status,
+    }

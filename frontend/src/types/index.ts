@@ -135,7 +135,11 @@ export interface OfflineSyncResponse {
   results: OfflineSyncResultItem[];
 }
 
-export type IrregularityType = "MISSING_CHECKOUT" | "NOT_MARKED" | "INCOMPLETE_BREAK";
+export type IrregularityType =
+  | "MISSING_CHECKOUT"
+  | "NOT_MARKED"
+  | "INCOMPLETE_BREAK"
+  | "UNCOMMON_TIMESTAMPS";
 
 export interface IrregularityItem {
   id: string;
@@ -155,12 +159,17 @@ export interface IrregularityItem {
   in_time?: string | null;
   out_time?: string | null;
   events: AttendanceEvent[];
+  member_status?: "NONE" | "REPORTED" | "IGNORED";
+  reported_at?: string | null;
 }
 
 export interface IrregularitiesResponse {
   total_irregularities: number;
   missing_checkouts_count: number;
   not_marked_count: number;
+  uncommon_timestamps_count?: number;
+  reported_count?: number;
+  pending_count?: number;
   irregularities: IrregularityItem[];
 }
 

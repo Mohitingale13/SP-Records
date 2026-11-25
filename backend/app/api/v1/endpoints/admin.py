@@ -24,6 +24,7 @@ from app.schemas.attendance import (
 from app.schemas.audit import AuditLogSchema
 from app.services.attendance_service import AttendanceService
 from app.services.auth_service import AuthService
+from app.services.irregularity_service import IrregularityService
 from app.services.report_service import ReportService, format_report_date
 from app.services.location_service import LocationService
 from app.core.config import settings
@@ -124,178 +125,18 @@ def list_irregularities(
 ):
     """
     Returns an audit list of all attendance irregularities across staff members:
-    - Missing Check-Out: Staff checked in, but never checked out of the day.
-    - Day Not Marked: Staff member has 0 attendance records on a date when the office operated.
-    - Incomplete Break: Staff member left for lunch break, but never marked lunch return.
+    - Missing Check-Out
+    - Day Not Marked
+    - Incomplete Break
+    - Uncommon Timestamps (+- 1-2 mins apart, with Admin lunch break exception)
+    Includes member_status (REPORTED / IGNORED / NONE) and reported_count.
     """
-    today = get_current_kolkata_date()
-    start_date = today - timedelta(days=days)
-
-    staff_members = (
-        db.query(User)
-        .join(Role, User.role_id == Role.id)
-        .filter(
-            User.organization_id == current_admin.organization_id,
-            User.is_active == True,
-            Role.name != RoleName.SUPER_ADMIN.value,
-        )
-        .order_by(User.full_name.asc())
-        .all()
+    return IrregularityService.get_irregularities(
+        db=db,
+        organization_id=current_admin.organization_id,
+        days=days,
+        for_member=False,
     )
-
-    if not staff_members:
-        return {
-            "total_irregularities": 0,
-            "missing_checkouts_count": 0,
-            "not_marked_count": 0,
-            "irregularities": [],
-        }
-
-    records = (
-        db.query(AttendanceRecord)
-        .filter(
-            AttendanceRecord.organization_id == current_admin.organization_id,
-            AttendanceRecord.event_date >= start_date,
-            AttendanceRecord.event_date <= today,
-        )
-        .order_by(AttendanceRecord.event_date.desc(), AttendanceRecord.scanned_at.asc())
-        .all()
-    )
-
-    # Group records by (user_id, event_date) -> dict of event_type: AttendanceRecord
-    day_user_events: Dict[tuple, Dict[str, AttendanceRecord]] = {}
-    for r in records:
-        key = (r.user_id, r.event_date)
-        if key not in day_user_events:
-            day_user_events[key] = {}
-        day_user_events[key][r.event_type] = r
-
-    # Determine which dates had office activity (at least one staff punch)
-    active_dates = set(r.event_date for r in records)
-
-    irregularities = []
-    missing_checkouts_count = 0
-    not_marked_count = 0
-
-    candidate_dates = sorted(list(active_dates), reverse=True)
-
-    # Also include recent working weekdays in the last 7 days even if no records yet
-    for i in range(min(days, 7)):
-        past_d = today - timedelta(days=i)
-        if past_d.weekday() < 6 and past_d not in active_dates:
-            candidate_dates.append(past_d)
-    candidate_dates = sorted(list(set(candidate_dates)), reverse=True)
-
-    for check_date in candidate_dates:
-        is_past_day = check_date < today
-        date_records_exist = check_date in active_dates
-
-        # If it's a past date with 0 records across the entire organization, it was a closed holiday
-        if is_past_day and not date_records_exist:
-            continue
-
-        for staff in staff_members:
-            punches = day_user_events.get((staff.id, check_date), {})
-            absent_evt = punches.get(AttendanceEventType.ABSENT.value) or punches.get("ABSENT")
-            if absent_evt:
-                # The staff member's absence on this date is officially recorded and confirmed by Admin -> omit from irregularities!
-                continue
-
-            in_evt = punches.get(AttendanceEventType.OFFICE_IN.value)
-            l_out_evt = punches.get(AttendanceEventType.LUNCH_BREAK_OUT.value)
-            l_in_evt = punches.get(AttendanceEventType.LUNCH_BREAK_IN.value)
-            out_evt = punches.get(AttendanceEventType.OFFICE_OUT.value)
-
-            events_payload = [
-                {
-                    "id": str(e.id),
-                    "event_type": e.event_type,
-                    "scanned_at": e.scanned_at.isoformat(),
-                    "scanned_at_ist": format_kolkata_time(e.scanned_at),
-                    "is_manually_corrected": e.is_manually_corrected,
-                }
-                for e in sorted(punches.values(), key=lambda x: x.scanned_at)
-            ]
-
-            # Case 1: Staff member has NO records on this active working day
-            if len(punches) == 0:
-                if is_past_day and date_records_exist:
-                    not_marked_count += 1
-                    irregularities.append({
-                        "id": f"{staff.id}_{check_date.isoformat()}_NOT_MARKED",
-                        "date": check_date.isoformat(),
-                        "date_formatted": check_date.strftime("%d %b %Y (%a)"),
-                        "date_formatted_mr": format_report_date(check_date, is_marathi=True),
-                        "user_id": str(staff.id),
-                        "user_name": staff.full_name,
-                        "user_phone": staff.phone_number,
-                        "user_role": staff.role.name,
-                        "type": "NOT_MARKED",
-                        "severity": "warning",
-                        "title": "Day Not Marked",
-                        "title_mr": "दिवसाची हजेरी नोंद नाही (गैरहजर)",
-                        "description": "No attendance was recorded on this working day.",
-                        "description_mr": "या दिवशी कर्मचाऱ्याची कोणतीही हजेरी नोंद झालेली नाही.",
-                        "in_time": None,
-                        "out_time": None,
-                        "events": [],
-                    })
-                continue
-
-            # Case 2: Checked in, but missing checkout
-            if in_evt and not out_evt:
-                if is_past_day:
-                    missing_checkouts_count += 1
-                    in_time_str = format_kolkata_time(in_evt.scanned_at)
-                    irregularities.append({
-                        "id": f"{staff.id}_{check_date.isoformat()}_MISSING_CHECKOUT",
-                        "date": check_date.isoformat(),
-                        "date_formatted": check_date.strftime("%d %b %Y (%a)"),
-                        "date_formatted_mr": format_report_date(check_date, is_marathi=True),
-                        "user_id": str(staff.id),
-                        "user_name": staff.full_name,
-                        "user_phone": staff.phone_number,
-                        "user_role": staff.role.name,
-                        "type": "MISSING_CHECKOUT",
-                        "severity": "danger",
-                        "title": "Missing Check-Out",
-                        "title_mr": "निर्गमन नोंद नाही (Check-Out विसरले)",
-                        "description": f"Checked in at {in_time_str}, but forgot to check out.",
-                        "description_mr": f"सकाळी {in_time_str} वाजता आगमन नोंदवले, पण जाताना निर्गमन नोंद नाही.",
-                        "in_time": in_time_str,
-                        "out_time": None,
-                        "events": events_payload,
-                    })
-
-            # Case 3: Incomplete lunch break (went on lunch, never marked return, but punched out)
-            elif l_out_evt and not l_in_evt and out_evt:
-                l_out_time_str = format_kolkata_time(l_out_evt.scanned_at)
-                irregularities.append({
-                    "id": f"{staff.id}_{check_date.isoformat()}_INCOMPLETE_BREAK",
-                    "date": check_date.isoformat(),
-                    "date_formatted": check_date.strftime("%d %b %Y (%a)"),
-                    "date_formatted_mr": format_report_date(check_date, is_marathi=True),
-                    "user_id": str(staff.id),
-                    "user_name": staff.full_name,
-                    "user_phone": staff.phone_number,
-                    "user_role": staff.role.name,
-                    "type": "INCOMPLETE_BREAK",
-                    "severity": "warning",
-                    "title": "Incomplete Lunch Break",
-                    "title_mr": "जेवण ब्रेक अपूर्ण (परत नोंद नाही)",
-                    "description": f"Went on lunch break at {l_out_time_str}, but return punch was missing.",
-                    "description_mr": f"दुपारी {l_out_time_str} वाजता जेवण ब्रेक नोंदवला, पण परत आल्याची नोंद नाही.",
-                    "in_time": format_kolkata_time(in_evt.scanned_at) if in_evt else None,
-                    "out_time": format_kolkata_time(out_evt.scanned_at),
-                    "events": events_payload,
-                })
-
-    return {
-        "total_irregularities": len(irregularities),
-        "missing_checkouts_count": missing_checkouts_count,
-        "not_marked_count": not_marked_count,
-        "irregularities": irregularities,
-    }
 
 
 @router.get("/staff/{user_id}/history", response_model=List[AttendanceEventSchema], summary="View attendance history of a specific staff member")

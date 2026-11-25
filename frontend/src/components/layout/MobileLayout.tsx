@@ -3,8 +3,8 @@ import { Header } from "./Header";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Calendar, Shield, History, AlertTriangle } from "lucide-react";
-import { adminAPI } from "../../services/api";
+import { Calendar, Shield, History, AlertTriangle, QrCode } from "lucide-react";
+import { adminAPI, attendanceAPI } from "../../services/api";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -21,45 +21,73 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   const location = useLocation();
 
   const [irregularityCount, setIrregularityCount] = useState(0);
+  const [reportedCount, setReportedCount] = useState(0);
+  const [memberPendingCount, setMemberPendingCount] = useState(0);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAuthenticated) return;
     let isMounted = true;
-    adminAPI
-      .getIrregularities(14)
-      .then((data) => {
-        if (isMounted) {
-          setIrregularityCount(data.total_irregularities);
-        }
-      })
-      .catch(() => {});
+
+    const loadCounts = () => {
+      if (isAdmin) {
+        adminAPI
+          .getIrregularities(30)
+          .then((data) => {
+            if (isMounted) {
+              setIrregularityCount(data.total_irregularities ?? 0);
+              setReportedCount(data.reported_count ?? 0);
+            }
+          })
+          .catch(() => {});
+      } else {
+        attendanceAPI
+          .getMyIrregularities(30)
+          .then((data) => {
+            if (isMounted) {
+              setMemberPendingCount(data.pending_count ?? data.total_irregularities ?? 0);
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    loadCounts();
+    window.addEventListener("irregularities-updated", loadCounts);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("irregularities-updated", loadCounts);
     };
-  }, [isAdmin, location.pathname]);
+  }, [isAuthenticated, isAdmin, location.pathname]);
 
   const navOptions = [
     {
       value: "/dashboard",
-      label: isSuperAdmin ? (isMarathi ? "प्रशासन केंद्र" : "Overview") : t.dashboard,
-      icon: <Calendar className="w-4.5 h-4.5" />,
+      label: isSuperAdmin
+        ? isMarathi
+          ? "प्रशासन केंद्र"
+          : "Overview"
+        : isAdmin
+        ? t.dashboard
+        : isMarathi
+        ? "QR"
+        : "QR",
+      icon: isAdmin ? <Calendar className="w-4.5 h-4.5" /> : <QrCode className="w-4.5 h-4.5" />,
     },
     {
       value: "/history",
       label: t.history,
       icon: <History className="w-4.5 h-4.5" />,
     },
-  ];
-
-  if (isAdmin) {
-    // Irregularities tab placed at the 3rd place as requested
-    navOptions.push({
+    // Irregularities tab placed at the 3rd place for both members and admins
+    {
       value: "/irregularities",
       label: t.irregularities,
       icon: <AlertTriangle className="w-4.5 h-4.5" />,
-    });
+    },
+  ];
 
+  if (isAdmin) {
     // Admin Panel at 4th place
     navOptions.push({
       value: "/admin",
@@ -94,8 +122,14 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
           <div className="w-full max-w-md pointer-events-auto bg-white/85 backdrop-blur-2xl border border-white/90 shadow-[0_8px_32px_rgba(21,59,67,0.16)] rounded-full p-1.5 flex items-center justify-around">
             {navOptions.map((opt) => {
               const isSelected = activeValue === opt.value;
-              const hasBadge =
-                opt.value === "/irregularities" && irregularityCount > 0 && !isSelected;
+              const isIrregTab = opt.value === "/irregularities";
+              const powerCount = isIrregTab
+                ? isAdmin
+                  ? reportedCount
+                  : memberPendingCount
+                : 0;
+              const hasDotBadge =
+                isIrregTab && isAdmin && powerCount === 0 && irregularityCount > 0 && !isSelected;
 
               return (
                 <button
@@ -111,25 +145,35 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   aria-label={typeof opt.label === "string" ? opt.label : undefined}
                 >
                   <span
-                    className={`shrink-0 transition-transform duration-300 ${
+                    className={`relative shrink-0 transition-transform duration-300 ${
                       isSelected ? "text-brand-primary scale-110" : "text-brand-muted"
                     }`}
                   >
                     {opt.icon}
+
+                    {/* Superscript / power count badge (1, 2, ...) for reported/pending irregularities */}
+                    {powerCount > 0 && (
+                      <span
+                        className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-600 text-white text-[9px] font-black leading-none flex items-center justify-center shadow-sm ring-1 ring-white"
+                        aria-label={`${powerCount} irregularities`}
+                      >
+                        {powerCount > 9 ? "9+" : powerCount}
+                      </span>
+                    )}
+
+                    {/* Subtle red indicator dot for unraised admin irregularities */}
+                    {hasDotBadge && (
+                      <span className="absolute -top-0.5 -right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    )}
                   </span>
 
                   {/* Show name ONLY when clicked/selected */}
                   {isSelected && (
                     <span className="text-xs font-bold tracking-tight truncate max-w-[130px] ml-1.5 inline-block animate-fadeIn">
                       {opt.label}
-                    </span>
-                  )}
-
-                  {/* Subtle red indicator badge for unresolved irregularities */}
-                  {hasBadge && (
-                    <span className="absolute top-1.5 right-2 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                     </span>
                   )}
                 </button>

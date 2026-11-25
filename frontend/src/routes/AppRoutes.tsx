@@ -99,7 +99,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="/irregularities"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute>
               <MobileLayout>
                 <IrregularitiesScreen />
               </MobileLayout>

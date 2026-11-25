@@ -2,8 +2,9 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { GlassCard } from "../../components/common/GlassCard";
 import { Button } from "../../components/common/Button";
+import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { adminAPI } from "../../services/api";
+import { adminAPI, attendanceAPI } from "../../services/api";
 import type { IrregularityItem, IrregularitiesResponse, AttendanceEventType } from "../../types";
 import {
   AlertTriangle,
@@ -17,18 +18,37 @@ import {
   AlertCircle,
   X,
   UserX,
+  Flag,
+  EyeOff,
 } from "lucide-react";
 import { ScrollTimePicker } from "../../components/common/ScrollTimePicker";
 
+const EVENT_SHORT_LABELS: Record<string, { en: string; mr: string }> = {
+  OFFICE_IN: { en: "In", mr: "आगमन" },
+  LUNCH_BREAK_OUT: { en: "Lunch Out", mr: "ब्रेक आउट" },
+  LUNCH_BREAK_IN: { en: "Lunch In", mr: "ब्रेक इन" },
+  OFFICE_OUT: { en: "Out", mr: "निर्गमन" },
+};
+
 export const IrregularitiesScreen: React.FC = () => {
+  const { isAdmin } = useAuth();
   const { t, language } = useLanguage();
   const isMarathi = language === "mr";
   const navigate = useNavigate();
 
   const [irregularities, setIrregularities] = useState<IrregularityItem[]>([]);
-  const [counts, setCounts] = useState({ total: 0, missingCheckouts: 0, notMarked: 0 });
+  const [counts, setCounts] = useState({
+    total: 0,
+    missingCheckouts: 0,
+    notMarked: 0,
+    uncommon: 0,
+    reported: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<"ALL" | "MISSING_CHECKOUT" | "NOT_MARKED">("ALL");
+  const [activeFilter, setActiveFilter] = useState<
+    "ALL" | "REPORTED" | "UNCOMMON_TIMESTAMPS" | "MISSING_CHECKOUT" | "NOT_MARKED"
+  >("ALL");
+  const [actingId, setActingId] = useState<string | null>(null);
 
   // Adjustment Modal State
   const [adjustItem, setAdjustItem] = useState<IrregularityItem | null>(null);
@@ -46,19 +66,23 @@ export const IrregularitiesScreen: React.FC = () => {
   const fetchIrregularities = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
     try {
-      const data: IrregularitiesResponse = await adminAPI.getIrregularities(30);
+      const data: IrregularitiesResponse = isAdmin
+        ? await adminAPI.getIrregularities(30)
+        : await attendanceAPI.getMyIrregularities(30);
       setIrregularities(data.irregularities);
       setCounts({
         total: data.total_irregularities,
         missingCheckouts: data.missing_checkouts_count,
         notMarked: data.not_marked_count,
+        uncommon: data.uncommon_timestamps_count ?? 0,
+        reported: data.reported_count ?? 0,
       });
     } catch (err) {
       console.error("Failed to load irregularities:", err);
     } finally {
       if (!isSilent) setIsLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     fetchIrregularities();
@@ -66,8 +90,47 @@ export const IrregularitiesScreen: React.FC = () => {
 
   const filteredItems = irregularities.filter((item) => {
     if (activeFilter === "ALL") return true;
+    if (activeFilter === "REPORTED") return item.member_status === "REPORTED";
     return item.type === activeFilter;
   });
+
+  const handleMemberAction = async (item: IrregularityItem, action: "REPORTED" | "IGNORED") => {
+    setActingId(item.id);
+    try {
+      await attendanceAPI.actOnIrregularity({
+        irregularity_id: item.id,
+        event_date: item.date,
+        irregularity_type: item.type,
+        action,
+      });
+
+      if (action === "IGNORED") {
+        setIrregularities((prev) => prev.filter((i) => i.id !== item.id));
+        setCounts((prev) => ({
+          ...prev,
+          total: Math.max(0, prev.total - 1),
+        }));
+        setAdjustSuccess(
+          isMarathi ? "अनियमितता दुर्लक्षित केली गेली." : "Irregularity ignored."
+        );
+      } else {
+        setIrregularities((prev) =>
+          prev.map((i) => (i.id === item.id ? { ...i, member_status: "REPORTED" } : i))
+        );
+        setAdjustSuccess(
+          isMarathi
+            ? "प्रशासनास (Admin) यशस्वीरित्या कळवले गेले."
+            : "Reported to Admin for review."
+        );
+      }
+      window.dispatchEvent(new Event("irregularities-updated"));
+      setTimeout(() => setAdjustSuccess(null), 4000);
+    } catch (err: any) {
+      console.error("Failed to submit action:", err);
+    } finally {
+      setActingId(null);
+    }
+  };
 
   const handleOpenDaySettings = (item: IrregularityItem) => {
     // Navigate to Past Records (/history) with Staff Tab, staff member, and date pre-selected
@@ -105,6 +168,7 @@ export const IrregularitiesScreen: React.FC = () => {
           : `${absentItem.user_name} marked as Absent. Entry resolved.`
       );
       setAbsentItem(null);
+      window.dispatchEvent(new Event("irregularities-updated"));
       setTimeout(() => setAdjustSuccess(null), 4000);
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -138,17 +202,28 @@ export const IrregularitiesScreen: React.FC = () => {
       const [hours, minutes] = adjustTime.split(":");
       const dt = new Date(`${adjustItem.date}T${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00+05:30`);
 
-      await adminAPI.manualAdd({
-        user_id: adjustItem.user_id,
-        event_type: adjustEventType,
-        event_date: adjustItem.date,
-        scanned_at: dt.toISOString(),
-        reason: "Manual adjustment from Irregularities",
-      });
+      const existingEvt = adjustItem.events?.find((ev) => ev.event_type === adjustEventType);
+      if (existingEvt) {
+        await adminAPI.correct({
+          record_id: existingEvt.id,
+          new_event_type: adjustEventType,
+          new_scanned_at: dt.toISOString(),
+          reason: "Manual adjustment from Irregularities",
+        });
+      } else {
+        await adminAPI.manualAdd({
+          user_id: adjustItem.user_id,
+          event_type: adjustEventType,
+          event_date: adjustItem.date,
+          scanned_at: dt.toISOString(),
+          reason: "Manual adjustment from Irregularities",
+        });
+      }
 
       setAdjustSuccess(t.adjustmentSuccess);
       setAdjustItem(null);
       await fetchIrregularities(true);
+      window.dispatchEvent(new Event("irregularities-updated"));
       setTimeout(() => setAdjustSuccess(null), 4000);
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -172,9 +247,13 @@ export const IrregularitiesScreen: React.FC = () => {
                 {t.irregularities}
               </h1>
               <p className="text-[11px] text-brand-muted font-medium">
-                {isMarathi
-                  ? "चेक-आउट विसरलेल्या किंवा गैरहजर दिवसांची यादी"
-                  : "Missed check-outs and unmarked working days"}
+                {isAdmin
+                  ? isMarathi
+                    ? "चुकलेल्या, अपूर्ण किंवा असामान्य वेळेच्या नोंदींची यादी"
+                    : "Missed punches, unmarked days & unusual timings"
+                  : isMarathi
+                  ? "तुमच्या असामान्य किंवा अपूर्ण वेळेच्या नोंदी तपासा"
+                  : "Review unusual punch timings or missing punches"}
               </p>
             </div>
           </div>
@@ -191,7 +270,7 @@ export const IrregularitiesScreen: React.FC = () => {
         </div>
 
         {/* Overview Metric Counters */}
-        <div className="grid grid-cols-3 gap-2 pt-3 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 text-center">
           <button
             type="button"
             onClick={() => setActiveFilter("ALL")}
@@ -205,6 +284,38 @@ export const IrregularitiesScreen: React.FC = () => {
               {isMarathi ? "एकूण समस्या" : "Total Issues"}
             </span>
             <span className="text-lg font-black text-brand-dark">{counts.total}</span>
+          </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveFilter("REPORTED")}
+              className={`p-2.5 rounded-xl border transition-all text-left ${
+                activeFilter === "REPORTED"
+                  ? "bg-rose-500/20 border-rose-500/50 shadow-md ring-2 ring-rose-500/30"
+                  : "bg-rose-500/10 border-rose-500/20 hover:bg-rose-500/15"
+              }`}
+            >
+              <span className="text-[10px] text-rose-800 font-bold block truncate">
+                {isMarathi ? "कळवलेले" : "Reported"}
+              </span>
+              <span className="text-lg font-black text-rose-700">{counts.reported}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setActiveFilter("UNCOMMON_TIMESTAMPS")}
+            className={`p-2.5 rounded-xl border transition-all text-left ${
+              activeFilter === "UNCOMMON_TIMESTAMPS"
+                ? "bg-orange-500/20 border-orange-500/50 shadow-md ring-2 ring-orange-500/30"
+                : "bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/15"
+            }`}
+          >
+            <span className="text-[10px] text-orange-800 font-bold block truncate">
+              {isMarathi ? "असामान्य वेळ" : "Unusual Time"}
+            </span>
+            <span className="text-lg font-black text-orange-700">{counts.uncommon}</span>
           </button>
 
           <button
@@ -222,20 +333,22 @@ export const IrregularitiesScreen: React.FC = () => {
             <span className="text-lg font-black text-red-700">{counts.missingCheckouts}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveFilter("NOT_MARKED")}
-            className={`p-2.5 rounded-xl border transition-all text-left ${
-              activeFilter === "NOT_MARKED"
-                ? "bg-amber-500/25 border-amber-500/50 shadow-md ring-2 ring-amber-500/30"
-                : "bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
-            }`}
-          >
-            <span className="text-[10px] text-amber-800 font-bold block truncate">
-              {isMarathi ? "नोंद नाही / गैरहजर" : "Not Marked"}
-            </span>
-            <span className="text-lg font-black text-amber-700">{counts.notMarked}</span>
-          </button>
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveFilter("NOT_MARKED")}
+              className={`p-2.5 rounded-xl border transition-all text-left ${
+                activeFilter === "NOT_MARKED"
+                  ? "bg-amber-500/25 border-amber-500/50 shadow-md ring-2 ring-amber-500/30"
+                  : "bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
+              }`}
+            >
+              <span className="text-[10px] text-amber-800 font-bold block truncate">
+                {isMarathi ? "नोंद नाही / गैरहजर" : "Not Marked"}
+              </span>
+              <span className="text-lg font-black text-amber-700">{counts.notMarked}</span>
+            </button>
+          )}
         </div>
       </GlassCard>
 
@@ -276,11 +389,28 @@ export const IrregularitiesScreen: React.FC = () => {
             <GlassCard
               key={item.id}
               className={`!p-4 space-y-3 transition-all hover:shadow-md ${
-                item.severity === "danger"
+                isAdmin && item.member_status === "REPORTED"
+                  ? "border-rose-500/60 ring-2 ring-rose-500/25 bg-gradient-to-br from-white/90 via-white/70 to-rose-500/10"
+                  : item.severity === "danger"
                   ? "border-red-500/30 bg-gradient-to-br from-white/80 via-white/60 to-red-500/5"
                   : "border-amber-500/30 bg-gradient-to-br from-white/80 via-white/60 to-amber-500/5"
               }`}
             >
+              {/* Reported by Member Banner (Admin view) */}
+              {isAdmin && item.member_status === "REPORTED" && (
+                <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-800 text-[10px] font-extrabold uppercase tracking-wide">
+                  <span className="flex items-center gap-1.5">
+                    <Flag className="w-3 h-3 text-rose-600" />
+                    <span>
+                      {isMarathi ? "कर्मचाऱ्याने दुरुस्तीसाठी कळवले" : "Reported by Member"}
+                    </span>
+                  </span>
+                  <span className="text-[9px] font-bold opacity-80">
+                    {isMarathi ? "प्राधान्य" : "Action Requested"}
+                  </span>
+                </div>
+              )}
+
               {/* Card Header: Date & Irregularity Type Badge */}
               <div className="flex items-center justify-between gap-2 border-b border-brand-dark/10 pb-2.5">
                 <span className="text-xs font-bold text-brand-dark flex items-center gap-1.5">
@@ -302,101 +432,163 @@ export const IrregularitiesScreen: React.FC = () => {
 
               {/* Employee Info & Irregularity Explanation */}
               <div className="flex items-start justify-between gap-2">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <UserIcon className="w-3.5 h-3.5 text-brand-muted" />
-                    <span className="text-xs font-extrabold text-brand-dark">{item.user_name}</span>
-                    <span className="text-[10px] font-bold text-brand-muted">
-                      ({item.user_phone.replace(/^\+91/, "")})
-                    </span>
-                  </div>
+                <div className="space-y-1.5 w-full">
+                  {isAdmin && (
+                    <div className="flex items-center gap-1.5">
+                      <UserIcon className="w-3.5 h-3.5 text-brand-muted" />
+                      <span className="text-xs font-extrabold text-brand-dark">{item.user_name}</span>
+                      <span className="text-[10px] font-bold text-brand-muted">
+                        ({item.user_phone.replace(/^\+91/, "")})
+                      </span>
+                    </div>
+                  )}
 
                   <p className="text-xs font-medium text-brand-dark/85">
                     {isMarathi ? item.description_mr : item.description}
                   </p>
 
-                  {/* Punch details */}
-                  {item.in_time && (
-                    <div className="flex items-center gap-2 pt-1 text-[11px] text-brand-muted">
-                      <span className="flex items-center gap-1 font-semibold">
-                        <Clock className="w-3 h-3 text-emerald-600" />
-                        <span>In: {item.in_time}</span>
-                      </span>
-                      <span>•</span>
-                      <span className="text-red-700 font-bold">
-                        {isMarathi ? "Out: नोंद नाही" : "Out: Missing"}
-                      </span>
+                  {/* Punch timeline chips */}
+                  {item.events && item.events.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {item.events.map((ev) => {
+                        const lbl = EVENT_SHORT_LABELS[ev.event_type];
+                        const shortName = lbl ? (isMarathi ? lbl.mr : lbl.en) : ev.event_type;
+                        return (
+                          <span
+                            key={ev.id}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/80 border border-brand-dark/10 text-[10px] font-semibold text-brand-dark"
+                          >
+                            <Clock className="w-2.5 h-2.5 text-brand-primary" />
+                            <span>{shortName}:</span>
+                            <span className="font-bold">{ev.scanned_at_ist}</span>
+                          </span>
+                        );
+                      })}
                     </div>
+                  ) : (
+                    item.in_time && (
+                      <div className="flex items-center gap-2 pt-1 text-[11px] text-brand-muted">
+                        <span className="flex items-center gap-1 font-semibold">
+                          <Clock className="w-3 h-3 text-emerald-600" />
+                          <span>In: {item.in_time}</span>
+                        </span>
+                        <span>•</span>
+                        <span className={item.out_time ? "text-emerald-700 font-semibold" : "text-red-700 font-bold"}>
+                          {item.out_time
+                            ? `Out: ${item.out_time}`
+                            : isMarathi
+                            ? "Out: नोंद नाही"
+                            : "Out: Missing"}
+                        </span>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
 
-              {/* Action Buttons: Land on Day's Settings, Quick Adjust, or Mark as Absent */}
-              <div className="space-y-2 pt-2 border-t border-brand-dark/10">
-                {item.type === "NOT_MARKED" ? (
-                  <>
-                    <Button
-                      variant="danger"
-                      onClick={() => handleOpenMarkAbsent(item)}
-                      className="w-full !py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-1.5 shadow-sm"
-                      icon={<UserX className="w-3.5 h-3.5" />}
-                    >
-                      {t.markAsAbsent}
-                    </Button>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleOpenQuickAdjust(item)}
-                        className="w-full !py-1.5 text-xs font-bold border-brand-primary/40 hover:bg-brand-primary/10 flex items-center justify-center gap-1.5"
-                        icon={<Edit2 className="w-3.5 h-3.5 text-brand-primary" />}
-                      >
-                        {t.quickAdjust}
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleOpenDaySettings(item)}
-                        className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
-                        icon={<ArrowRight className="w-3.5 h-3.5" />}
-                      >
-                        {t.openDaySettings}
-                      </Button>
+              {/* Action Buttons */}
+              {!isAdmin ? (
+                <div className="pt-2 border-t border-brand-dark/10">
+                  {item.member_status === "REPORTED" ? (
+                    <div className="w-full py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>
+                        {isMarathi
+                          ? "प्रशासनास कळवले आहे (Admin Review Pending)"
+                          : "Reported to Admin"}
+                      </span>
                     </div>
-                  </>
-                ) : (
-                  <>
+                  ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         variant="primary"
-                        onClick={() => handleOpenQuickAdjust(item)}
-                        className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
-                        icon={<Edit2 className="w-3.5 h-3.5" />}
+                        onClick={() => handleMemberAction(item, "REPORTED")}
+                        isLoading={actingId === item.id}
+                        className="w-full !py-2 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
+                        icon={<Flag className="w-3.5 h-3.5" />}
                       >
-                        {t.quickAdjust}
+                        {isMarathi ? "प्रशासनास कळवा" : "Report to Admin"}
                       </Button>
 
                       <Button
                         variant="secondary"
-                        onClick={() => handleOpenDaySettings(item)}
-                        className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
-                        icon={<ArrowRight className="w-3.5 h-3.5" />}
+                        onClick={() => handleMemberAction(item, "IGNORED")}
+                        disabled={actingId === item.id}
+                        className="w-full !py-2 text-xs font-bold flex items-center justify-center gap-1.5"
+                        icon={<EyeOff className="w-3.5 h-3.5" />}
                       >
-                        {t.openDaySettings}
+                        {isMarathi ? "दुर्लक्ष करा" : "Ignore"}
                       </Button>
                     </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 pt-2 border-t border-brand-dark/10">
+                  {item.type === "NOT_MARKED" ? (
+                    <>
+                      <Button
+                        variant="danger"
+                        onClick={() => handleOpenMarkAbsent(item)}
+                        className="w-full !py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-1.5 shadow-sm"
+                        icon={<UserX className="w-3.5 h-3.5" />}
+                      >
+                        {t.markAsAbsent}
+                      </Button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleOpenMarkAbsent(item)}
-                      className="w-full py-1 text-[11px] font-semibold text-rose-700 hover:text-rose-900 hover:underline flex items-center justify-center gap-1"
-                    >
-                      <UserX className="w-3 h-3 text-rose-600" />
-                      <span>{isMarathi ? "कर्मचारी गैरहजर होते? गैरहजर नोंदवा" : "Staff was absent? Mark as Absent"}</span>
-                    </button>
-                  </>
-                )}
-              </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => handleOpenQuickAdjust(item)}
+                          className="w-full !py-1.5 text-xs font-bold border-brand-primary/40 hover:bg-brand-primary/10 flex items-center justify-center gap-1.5"
+                          icon={<Edit2 className="w-3.5 h-3.5 text-brand-primary" />}
+                        >
+                          {t.quickAdjust}
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          onClick={() => handleOpenDaySettings(item)}
+                          className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                          icon={<ArrowRight className="w-3.5 h-3.5" />}
+                        >
+                          {t.openDaySettings}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="primary"
+                          onClick={() => handleOpenQuickAdjust(item)}
+                          className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
+                          icon={<Edit2 className="w-3.5 h-3.5" />}
+                        >
+                          {t.quickAdjust}
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          onClick={() => handleOpenDaySettings(item)}
+                          className="w-full !py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                          icon={<ArrowRight className="w-3.5 h-3.5" />}
+                        >
+                          {t.openDaySettings}
+                        </Button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenMarkAbsent(item)}
+                        className="w-full py-1 text-[11px] font-semibold text-rose-700 hover:text-rose-900 hover:underline flex items-center justify-center gap-1"
+                      >
+                        <UserX className="w-3 h-3 text-rose-600" />
+                        <span>{isMarathi ? "कर्मचारी गैरहजर होते? गैरहजर नोंदवा" : "Staff was absent? Mark as Absent"}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </GlassCard>
           ))}
         </div>

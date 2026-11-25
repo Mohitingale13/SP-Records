@@ -119,6 +119,23 @@ export const attendanceAPI = {
     const res = await apiClient.post<OfflineSyncResponse>("/attendance/sync-offline", { events });
     return res.data;
   },
+
+  getMyIrregularities: async (days: number = 30): Promise<IrregularitiesResponse> => {
+    const res = await apiClient.get<IrregularitiesResponse>("/attendance/irregularities", {
+      params: { days },
+    });
+    return res.data;
+  },
+
+  actOnIrregularity: async (data: {
+    irregularity_id: string;
+    event_date: string;
+    irregularity_type: string;
+    action: "REPORTED" | "IGNORED";
+  }): Promise<{ irregularity_id: string; status: string }> => {
+    const res = await apiClient.post("/attendance/irregularities/action", data);
+    return res.data;
+  },
 };
 
 export const qrAPI = {

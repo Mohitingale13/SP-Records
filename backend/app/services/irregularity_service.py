@@ -35,20 +35,23 @@ def _detect_uncommon_pairs(
 ) -> List[Tuple[AttendanceRecord, AttendanceRecord, int]]:
     """
     Detects pairs of punches that occurred within +- 1-2 minutes of each other.
-    Applies the Admin exception: for ADMIN users, LUNCH_BREAK_OUT <-> LUNCH_BREAK_IN
-    within 1-2 minutes is normal (stays in office) and is NOT flagged.
+    Applies the Admin exception: for ADMIN users, anything related to lunch timing
+    (OFFICE_IN <-> LUNCH_BREAK_OUT, LUNCH_BREAK_OUT <-> LUNCH_BREAK_IN,
+    LUNCH_BREAK_IN <-> OFFICE_OUT) is NOT flagged.
     """
     in_evt = punches.get(AttendanceEventType.OFFICE_IN.value)
     l_out_evt = punches.get(AttendanceEventType.LUNCH_BREAK_OUT.value)
     l_in_evt = punches.get(AttendanceEventType.LUNCH_BREAK_IN.value)
     out_evt = punches.get(AttendanceEventType.OFFICE_OUT.value)
 
+    is_admin = user_role_name == RoleName.ADMIN.value
+
     candidate_pairs: List[Tuple[Optional[AttendanceRecord], Optional[AttendanceRecord], bool]] = [
-        (in_evt, l_out_evt, False),
-        (l_out_evt, l_in_evt, user_role_name == RoleName.ADMIN.value),
-        (l_in_evt, out_evt, False),
-        # Also check IN <-> OUT directly if no lunch punches exist
-        (in_evt, out_evt, bool(l_out_evt or l_in_evt)),
+        (in_evt, l_out_evt, is_admin),
+        (l_out_evt, l_in_evt, is_admin),
+        (l_in_evt, out_evt, is_admin),
+        # Also check IN <-> OUT directly if no lunch punches exist (or for admin)
+        (in_evt, out_evt, False if is_admin else bool(l_out_evt or l_in_evt)),
     ]
 
     flagged: List[Tuple[AttendanceRecord, AttendanceRecord, int]] = []
@@ -254,7 +257,8 @@ class IrregularityService:
                     })
 
                 # Case 3: Incomplete lunch break (went on lunch, never marked return, but punched out)
-                elif l_out_evt and not l_in_evt and out_evt:
+                # Exception: skip lunch-related checks for ADMIN
+                elif l_out_evt and not l_in_evt and out_evt and role_name != RoleName.ADMIN.value:
                     l_out_time_str = format_kolkata_time(l_out_evt.scanned_at)
                     _append_item({
                         "id": f"{staff.id}_{check_date.isoformat()}_INCOMPLETE_BREAK",

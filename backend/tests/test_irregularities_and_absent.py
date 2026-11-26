@@ -121,11 +121,11 @@ def test_uncommon_timestamps_and_admin_lunch_exception(client: TestClient, db_se
             )
         )
 
-    # Admin has LUNCH_BREAK_OUT (08:00 UTC) and LUNCH_BREAK_IN (08:01 UTC) 1 min apart -> EXCEPTION should apply!
+    # Admin has LUNCH_BREAK_OUT (12:28 UTC), LUNCH_BREAK_IN (12:29 UTC), OFFICE_OUT (12:30 UTC) -> ALL lunch checks skipped!
     for ev_type, hour, minute in [
         (AttendanceEventType.OFFICE_IN.value, 4, 0),
-        (AttendanceEventType.LUNCH_BREAK_OUT.value, 8, 0),
-        (AttendanceEventType.LUNCH_BREAK_IN.value, 8, 1),
+        (AttendanceEventType.LUNCH_BREAK_OUT.value, 12, 28),
+        (AttendanceEventType.LUNCH_BREAK_IN.value, 12, 29),
         (AttendanceEventType.OFFICE_OUT.value, 12, 30),
     ]:
         db_session.add(

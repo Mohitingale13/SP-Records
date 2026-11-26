@@ -244,3 +244,45 @@ def test_member_irregularities_report_and_ignore(client: TestClient, db_session:
     assert s2_item["id"] in ids_map
 
 
+def test_irregularities_expire_after_one_week(client: TestClient, db_session: Session):
+    staff_token, staff_user = get_authenticated_staff(client, phone="+919876543350", name="Expiry Test Staff")
+    admin_token = get_authenticated_admin(client, phone="+919876543351", name="Expiry Test Admin")
+
+    admin_obj = db_session.query(User).filter(User.phone_number == "+919876543351").first()
+    staff_uid = uuid.UUID(staff_user["id"])
+    org_id = admin_obj.organization_id
+
+    recent_date = date.today() - timedelta(days=5)  # Within 1 week -> should appear
+    expired_date = date.today() - timedelta(days=7)  # 1 week old -> should disappear
+    old_date = date.today() - timedelta(days=10)     # Older than 1 week -> should disappear
+
+    for d in (recent_date, expired_date, old_date):
+        db_session.add(
+            AttendanceRecord(
+                user_id=staff_uid,
+                organization_id=org_id,
+                event_type=AttendanceEventType.OFFICE_IN.value,
+                event_date=d,
+                scanned_at=datetime(d.year, d.month, d.day, 4, 0, tzinfo=timezone.utc),
+                verification_method="QR_GPS",
+                is_manually_corrected=False,
+            )
+        )
+    db_session.commit()
+
+    # Even if requesting days=30, expired_date (7 days ago) and old_date (10 days ago) are removed
+    admin_res = client.get("/api/v1/admin/irregularities?days=30", headers={"Authorization": f"Bearer {admin_token}"})
+    assert admin_res.status_code == 200
+    admin_dates = {i["date"] for i in admin_res.json()["irregularities"] if i["user_id"] == str(staff_uid)}
+    assert recent_date.isoformat() in admin_dates
+    assert expired_date.isoformat() not in admin_dates
+    assert old_date.isoformat() not in admin_dates
+
+    member_res = client.get("/api/v1/attendance/irregularities?days=30", headers={"Authorization": f"Bearer {staff_token}"})
+    assert member_res.status_code == 200
+    member_dates = {i["date"] for i in member_res.json()["irregularities"]}
+    assert recent_date.isoformat() in member_dates
+    assert expired_date.isoformat() not in member_dates
+    assert old_date.isoformat() not in member_dates
+
+

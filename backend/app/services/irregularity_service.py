@@ -14,6 +14,9 @@ from app.services.report_service import format_report_date
 # Threshold in seconds for flagging two consecutive punches as "same or +- 1-2 minutes"
 CLOSE_PUNCH_THRESHOLD_SECONDS = 150  # 2.5 minutes
 
+# Irregularities older than 7 days (1 week) automatically expire and disappear
+IRREGULARITY_RETENTION_DAYS = 7
+
 EVENT_LABELS_EN = {
     AttendanceEventType.OFFICE_IN.value: "Office In",
     AttendanceEventType.LUNCH_BREAK_OUT.value: "Lunch Break Out",
@@ -78,7 +81,21 @@ class IrregularityService:
         for_member: bool = False,
     ) -> dict:
         today = get_current_kolkata_date()
-        start_date = today - timedelta(days=days)
+        cutoff_date = today - timedelta(days=IRREGULARITY_RETENTION_DAYS)
+        requested_start = today - timedelta(days=days)
+        start_date = max(requested_start, cutoff_date + timedelta(days=1))
+
+        # Automatically purge expired member irregularity actions older than 1 week
+        expired_deleted = (
+            db.query(IrregularityAction)
+            .filter(
+                IrregularityAction.organization_id == organization_id,
+                IrregularityAction.event_date <= cutoff_date,
+            )
+            .delete(synchronize_session=False)
+        )
+        if expired_deleted:
+            db.commit()
 
         user_query = (
             db.query(User)
